@@ -36,7 +36,7 @@ export async function buildRocks(count: number) {
   // Each rock type is drawn twice: a few shadow-casting boulders from a detailed LOD,
   // and many small stones from the lightest LOD without shadows (cheap on iGPUs).
   const layers = [
-    { lod: 1, count: Math.round(count * 0.08), big: true },
+    { lod: 2, count: Math.round(count * 0.08), big: true },
     { lod: 3, count: Math.round(count * 0.92), big: false },
   ];
   sources.forEach((gltf, k) => {

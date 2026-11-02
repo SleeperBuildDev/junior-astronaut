@@ -121,7 +121,7 @@ function labelTexture(text: string, bg = '#e9e7e1', fg = '#1d2733') {
 const mats = {
   shell: new THREE.MeshStandardMaterial({ color: 0xeceae4, roughness: 0.55, metalness: 0.05 }),
   foil: new THREE.MeshStandardMaterial({ color: 0xd4a640, roughness: 0.32, metalness: 1 }),
-  alu: new THREE.MeshStandardMaterial({ color: 0xb9bec6, roughness: 0.35, metalness: 1 }),
+  alu: new THREE.MeshStandardMaterial({ color: 0xb9bec6, roughness: 0.5, metalness: 0.85 }),
   dark: new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.5, metalness: 0.7 }),
   rubber: new THREE.MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.9, metalness: 0 }),
   glass: new THREE.MeshStandardMaterial({ color: 0x0a1420, roughness: 0.04, metalness: 0.2, emissive: 0xffc98a, emissiveIntensity: 0.9 }),
@@ -452,7 +452,7 @@ export function buildOutpost(): Outpost {
 
   // Landing site with the lander the crew arrived in
   const ly = padHeight('lander');
-  const lpad = new THREE.Mesh(new THREE.RingGeometry(9, 9.6, 64), mats.white);
+  const lpad = new THREE.Mesh(new THREE.RingGeometry(9.35, 9.6, 96), mats.hazard);
   lpad.rotation.x = -Math.PI / 2;
   lpad.position.set(LAYOUT.lander.x, ly + 0.03, LAYOUT.lander.z);
   group.add(lpad);

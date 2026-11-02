@@ -29,6 +29,7 @@ export function createRenderer(container: HTMLElement) {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   container.appendChild(renderer.domElement);
   renderer.domElement.tabIndex = 0;
+  renderer.info.autoReset = false; // composer renders several passes per frame; count them all
   return renderer;
 }
 
