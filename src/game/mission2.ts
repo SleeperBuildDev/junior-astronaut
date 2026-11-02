@@ -4,27 +4,27 @@ import { statusMaterials } from '../world/base';
 import { life, onLifeEvent, replaceFilter, resetLife, SAFE_O2, terminalOpen } from './lifesupport';
 import { mission, pushComm, screen, unlock, type Step } from './state';
 
-const CAPCOM = 'Mission Control';
-export const MISSION2_TITLE = 'Mission 2: Life Support Activation';
+const CAPCOM = 'mc';
+export const MISSION2_TITLE = 'm2.title';
 
 const STEPS: Step[] = [
-  { id: 'goto', text: 'Go to the life support unit (east of the habitat)', done: false },
-  { id: 'inspect', text: 'Open the life support terminal (E)', done: false },
-  { id: 'o2', text: 'Start the oxygen generator (terminal)', done: false, progress: '0/3' },
-  { id: 'filter', text: 'Replace the clogged recycler filter (hold E)', done: false },
-  { id: 'water', text: 'Start water recovery (terminal)', done: false },
-  { id: 'air', text: 'Raise habitat oxygen to 20.9%', done: false },
+  { id: 'goto', text: 'm2.goto', done: false },
+  { id: 'inspect', text: 'm2.inspect', done: false },
+  { id: 'o2', text: 'm2.o2', done: false, progress: '0/3' },
+  { id: 'filter', text: 'm2.filter', done: false },
+  { id: 'water', text: 'm2.water', done: false },
+  { id: 'air', text: 'm2.air', done: false },
 ];
 
 const LINES: Record<string, { vo: string; text: string }> = {
-  start: { vo: 'm2_01', text: 'Mission 2. The habitat air is thin and the water tank is low. Head to the life support unit on the east side of the habitat.' },
-  goto: { vo: 'm2_02', text: 'Good. Open the life support terminal and check which systems are offline.' },
-  inspect: { vo: 'm2_03', text: 'The oxygen generator is offline. Follow the start-up steps on the terminal to bring it online.' },
-  o2: { vo: 'm2_04', text: 'Oxygen generator running. It splits water into oxygen and hydrogen. But it needs water, and the water recycler is blocked.' },
-  filterHint: { vo: 'm2_05', text: 'The recycler filter is clogged with dust. Go to the filter housing and hold E to replace it.' },
-  filter: { vo: 'm2_06', text: 'New filter installed. Now start water recovery from the terminal.' },
-  water: { vo: 'm2_07', text: 'Water recovery online. Every drop gets cleaned and used again. Watch the habitat oxygen rise to a safe level.' },
-  air: { vo: 'm2_08', text: 'Habitat air is safe to breathe and the water loop is closed. Mission 2 complete. Life support is go.' },
+  start: { vo: 'm2_01', text: 'c.m2.start' },
+  goto: { vo: 'm2_02', text: 'c.m2.goto' },
+  inspect: { vo: 'm2_03', text: 'c.m2.inspect' },
+  o2: { vo: 'm2_04', text: 'c.m2.o2' },
+  filterHint: { vo: 'm2_05', text: 'c.m2.filterHint' },
+  filter: { vo: 'm2_06', text: 'c.m2.filter' },
+  water: { vo: 'm2_07', text: 'c.m2.water' },
+  air: { vo: 'm2_08', text: 'c.m2.air' },
 };
 
 export const FILTER_HOLD_SECONDS = 2.5;
@@ -118,9 +118,9 @@ export class Mission2 {
       return null;
     }
     if (id === 'ls-filter') {
-      if (life.value.filterOk) return 'Filter already replaced';
-      if (this.current?.id !== 'filter') return 'Check the terminal first';
-      return 'Hold E to replace the filter';
+      if (life.value.filterOk) return 'w.filterDone';
+      if (this.current?.id !== 'filter') return 'w.terminalFirst';
+      return 'w.holdFilter';
     }
     return null;
   }
@@ -134,7 +134,7 @@ export class Mission2 {
   }
 
   label(id: string) {
-    if (id === 'ls-filter') return life.value.filterOk ? 'New filter installed' : this.current?.id === 'filter' ? 'Hold E: replace clogged filter' : 'Recycler filter (clogged)';
+    if (id === 'ls-filter') return life.value.filterOk ? 'p.filterNew' : this.current?.id === 'filter' ? 'p.filterHold' : 'p.filterClogged';
     return null;
   }
 }

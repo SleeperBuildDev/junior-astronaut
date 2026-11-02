@@ -434,7 +434,7 @@ export function buildOutpost(): Outpost {
   place(lock.group, bx - 4.6, bz, 0, by);
   colliders.push({ kind: 'box', center: new THREE.Vector3(bx - 6.0, by + 2.1, bz), half: new THREE.Vector3(1.3, 1.3, 1.3) });
   blinkers.push({ mesh: lock.light, period: 1.2, phase: 0 });
-  interactables.push({ id: 'airlock', object: lock.hatch, label: () => 'Enter airlock' });
+  interactables.push({ id: 'airlock', object: lock.hatch, label: () => 'p.airlock' });
 
   // Regolith berm: a radiation-shielding mound of piled-up regolith on the habitat's north side.
   const berm = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 3.2, 2.6, 24, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x77736c, roughness: 1 }));
@@ -449,7 +449,7 @@ export function buildOutpost(): Outpost {
   const o2 = o2Station();
   place(o2.group, bx + 2, bz + 7.5, 0, by);
   colliders.push({ kind: 'box', center: new THREE.Vector3(bx + 2, by + 1.2, bz + 7.5), half: new THREE.Vector3(2.2, 1.2, 1.2) });
-  interactables.push({ id: 'o2', object: o2.panel, label: () => 'Refill suit oxygen' });
+  interactables.push({ id: 'o2', object: o2.panel, label: () => 'p.o2refill' });
 
   // Vertical solar arrays on higher ground to the east
   for (const [x, z] of [[32, -38], [44, -26], [26, -52]]) {
@@ -514,7 +514,7 @@ export function buildOutpost(): Outpost {
     st.box.name = 'sensor-' + i;
     sensorLights.push(st.light);
     colliders.push({ kind: 'cylinder', center: new THREE.Vector3(s.x, heightAt(s.x, s.z) + 0.8, s.z), halfHeight: 0.8, radius: 0.35 });
-    interactables.push({ id: 'sensor-' + i, object: st.box, label: () => 'Scan sensor station' });
+    interactables.push({ id: 'sensor-' + i, object: st.box, label: () => 'p.scan' });
   });
 
   // Life Support unit east of the node
@@ -523,8 +523,8 @@ export function buildOutpost(): Outpost {
   const lz = bz + 2.5;
   place(ls.group, lx, lz, 0, by);
   colliders.push({ kind: 'box', center: new THREE.Vector3(lx, by + 1.05, lz - 0.1), half: new THREE.Vector3(2.45, 1.05, 1.35) });
-  interactables.push({ id: 'ls-terminal', object: ls.term, label: () => 'Open life support terminal' });
-  interactables.push({ id: 'ls-filter', object: ls.filter, label: () => 'Inspect recycler filter' });
+  interactables.push({ id: 'ls-terminal', object: ls.term, label: () => 'p.terminal' });
+  interactables.push({ id: 'ls-filter', object: ls.filter, label: () => 'p.filterInspect' });
 
   return {
     group,

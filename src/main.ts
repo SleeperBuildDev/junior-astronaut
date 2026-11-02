@@ -3,6 +3,8 @@ import '@fontsource-variable/atkinson-hyperlegible-next';
 import '@fontsource/b612-mono/400.css';
 import '@fontsource/b612-mono/700.css';
 import '@fontsource-variable/orbitron';
+import '@fontsource/noto-sans-myanmar/400.css';
+import '@fontsource/noto-sans-myanmar/700.css';
 import * as THREE from 'three';
 import { render, h } from 'preact';
 import { beep, playVoice, setExertion, startAudio, thud } from './audio/audio';
@@ -11,7 +13,7 @@ import { settings, updateSettings, type Quality } from './engine/settings';
 import { resetLife, simulateLife, terminalOpen } from './game/lifesupport';
 import { Mission1 } from './game/mission1';
 import { FILTER_HOLD_SECONDS, Mission2 } from './game/mission2';
-import { clock, comms, fps, heading, holdProgress, knowledge, loadProgress, missionNumber, panel, prompt, pushComm, screen, suit, warning } from './game/state';
+import { clock, comms, fps, heading, holdProgress, knowledge, loadProgress, missionNumber, panel, prompt, pushComm, screen, suit, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { createPhysics } from './player/physics';
 import { Player } from './player/player';
@@ -20,7 +22,7 @@ import { loadTextures } from './world/assets';
 import { buildOutpost, type Interactable } from './world/base';
 import { heightAt, LAYOUT } from './world/heightfield';
 import { buildRocks } from './world/rocks';
-import { buildSky, SUN_DIR } from './world/sky';
+import { buildSky, EARTH_DIR, SUN_DIR } from './world/sky';
 import { buildTerrain, regolithMaterial } from './world/terrain';
 
 const QA = new URLSearchParams(location.search).has('qa');
@@ -151,7 +153,7 @@ async function boot() {
   player.yaw = startYaw;
   player.onLand = (fall) => thud(fall);
   player.onBoundary = () => {
-    pushComm('Mission Control', 'That is the edge of the safe exploration zone. Please head back toward the outpost.');
+    pushComm('mc', 'c.boundary');
     void playVoice('boundary');
   };
   mission1 = new Mission1(outpost.habitatPos, outpost.sensorLights);
@@ -194,7 +196,7 @@ async function boot() {
     if (it.id.startsWith('sensor-')) return mission1!.sensorLabel(Number(it.id.split('-')[1]));
     const m2 = missionNumber.value === 2 ? mission2!.label(it.id) : null;
     if (m2) return m2;
-    if (it.id === 'o2') return suit.value.o2 > 98 ? 'Oxygen tank full' : 'Refill suit oxygen';
+    if (it.id === 'o2') return suit.value.o2 > 98 ? 'p.o2full' : 'p.o2refill';
     return it.label();
   }
 
@@ -204,7 +206,7 @@ async function boot() {
       suit.value = { ...suit.value, o2: 100 };
       lowO2Warned = false;
       beep('ok');
-      pushComm('Mission Control', 'Suit oxygen refilled. You are good to go.');
+      pushComm('mc', 'c.o2refill');
       void playVoice('o2_refill');
       return;
     }
@@ -216,6 +218,109 @@ async function boot() {
     if (terminalOpen.value) input.unlock();
   }
   let holdTime = 0;
+
+  // ---------- guidance: where to go next ----------
+  const lsPos = outpost.lifeSupport.pos;
+  const GUIDE = {
+    habitat: new THREE.Vector3(LAYOUT.base.x + 2.5, outpost.habitatPos.y + 9.2, LAYOUT.base.z),
+    airlock: outpost.airlockPos.clone().add(new THREE.Vector3(0.3, 2, 0)),
+    ls: lsPos.clone().add(new THREE.Vector3(0, 1.6, 0)),
+    terminal: lsPos.clone().add(new THREE.Vector3(-0.2, 1.45, 1.5)),
+    filter: lsPos.clone().add(new THREE.Vector3(1.05, 0.95, 0.97)),
+  };
+  const sensorPos = LAYOUT.sensors.map((sp) => new THREE.Vector3(sp.x, heightAt(sp.x, sp.z) + 1.3, sp.z));
+
+  /** The point the player should head to for the current objective (null = no marker). */
+  function guideTarget(): { pos: THREE.Vector3; label: string; sky?: boolean } | null {
+    if (missionNumber.value === 1) {
+      switch (mission1!.current?.id) {
+        case 'earth':
+          return { pos: camera.position.clone().addScaledVector(EARTH_DIR, 1000), label: 'wp.earth', sky: true };
+        case 'reach':
+          return { pos: GUIDE.habitat, label: 'wp.habitat' };
+        case 'scan': {
+          const feet = player!.feet;
+          let best: THREE.Vector3 | null = null;
+          sensorPos.forEach((sp, i) => {
+            if (!mission1!.isScanned(i) && (!best || sp.distanceToSquared(feet) < best.distanceToSquared(feet))) best = sp;
+          });
+          return best ? { pos: best, label: 'wp.sensor' } : null;
+        }
+        case 'airlock':
+          return { pos: GUIDE.airlock, label: 'wp.airlock' };
+        default:
+          return null;
+      }
+    }
+    switch (mission2!.current?.id) {
+      case 'goto':
+        return { pos: GUIDE.ls, label: 'wp.ls' };
+      case 'inspect':
+      case 'o2':
+      case 'water':
+      case 'air':
+        return { pos: GUIDE.terminal, label: 'wp.terminal' };
+      case 'filter':
+        return { pos: GUIDE.filter, label: 'wp.filter' };
+      default:
+        return null;
+    }
+  }
+
+  // A soft vertical light beam over the target, visible from far away.
+  const beam = new THREE.Group();
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0x5fd4ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false });
+  const beamCore = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 60, 12, 1, true), beamMat);
+  beamCore.position.y = 30;
+  const beamRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.15, 48), beamMat.clone());
+  beamRing.rotation.x = -Math.PI / 2;
+  beamRing.position.y = 0.05;
+  beam.add(beamCore, beamRing);
+  beam.visible = false;
+  scene.add(beam);
+
+  const ndc = new THREE.Vector3();
+  function updateGuide(now: number) {
+    const target = screen.value === 'playing' && !terminalOpen.value ? guideTarget() : null;
+    if (!target || !player) {
+      if (waypoint.value) waypoint.value = null;
+      beam.visible = false;
+      return;
+    }
+    const feet = player.feet;
+    const dist = target.sky ? null : Math.hypot(target.pos.x - feet.x, target.pos.z - feet.z);
+    // Beam: only for ground targets that are not right in front of you.
+    beam.visible = !target.sky && dist !== null && dist > 9;
+    if (beam.visible) {
+      beam.position.set(target.pos.x, heightAt(target.pos.x, target.pos.z), target.pos.z);
+      (beamRing.material as THREE.MeshBasicMaterial).opacity = 0.25 + Math.sin(now * 3) * 0.12;
+    }
+    // Near enough to read the "Press E" prompt: hide the marker so it doesn't cover it.
+    if (dist !== null && dist < 2.6) {
+      if (waypoint.value) waypoint.value = null;
+      return;
+    }
+    ndc.copy(target.pos).project(camera);
+    const behind = ndc.z > 1;
+    let x = behind ? -ndc.x : ndc.x;
+    let y = behind ? -ndc.y : ndc.y;
+    const onScreen = !behind && Math.abs(x) < 0.9 && Math.abs(y) < 0.82;
+    if (!onScreen) {
+      // Push the marker to the edge of the screen, in the target's direction.
+      if (behind && Math.abs(x) < 0.05 && Math.abs(y) < 0.05) x = 1;
+      const k = 1 / Math.max(Math.abs(x) / 0.86, Math.abs(y) / 0.74);
+      x *= k;
+      y *= k;
+    }
+    waypoint.value = {
+      x: (x * 0.5 + 0.5) * innerWidth,
+      y: (1 - (y * 0.5 + 0.5)) * innerHeight,
+      onScreen,
+      angle: Math.atan2(-y, x),
+      dist,
+      label: target.label,
+    };
+  }
 
   // ---------- loop ----------
   let fpsAcc = 0;
@@ -276,6 +381,7 @@ async function boot() {
     }
 
     lamp.intensity = suit.value.light ? 30 : 0;
+    updateGuide(t / 1000);
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, 300);
     sun.target.position.copy(camera.position);
     sky.update(camera);
@@ -313,16 +419,16 @@ async function boot() {
     s.tempOut = -48 + Math.sin(performance.now() / 9000) * 3;
     if (s.o2 === 0) {
       s.health = Math.max(0, s.health - 4 * dt);
-      if (warningTimer <= 0) flash('OXYGEN DEPLETED: get to the oxygen station now!', 1);
-    } else if (s.o2 < 15 && warningTimer <= 0) flash('Oxygen critical', 1);
+      if (warningTimer <= 0) flash('w.o2depleted', 1);
+    } else if (s.o2 < 15 && warningTimer <= 0) flash('w.o2critical', 1);
     if (s.o2 < 30 && !lowO2Warned) {
       lowO2Warned = true;
       beep('warn');
-      pushComm('Mission Control', 'Your suit oxygen is getting low. Head to the oxygen station beside the habitat.');
+      pushComm('mc', 'c.o2low');
       void playVoice('o2_low');
     }
     if (s.health === 0) {
-      flash('You blacked out. Mission Control brought you back to the lander.', 5);
+      flash('w.blackout', 5);
       player!.teleport(startPos, startYaw);
       s.o2 = 100;
       s.health = 60;

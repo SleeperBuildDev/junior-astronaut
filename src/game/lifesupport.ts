@@ -8,9 +8,9 @@ import { beep } from '../audio/audio';
 export type SysState = 'offline' | 'starting' | 'online' | 'damaged';
 
 export const O2_STEPS = [
-  { label: 'Power on the electrolysis stack', why: 'Electrolysis uses electricity to split water (H₂O) into hydrogen and oxygen.' },
-  { label: 'Open the water feed valve', why: 'The generator needs a steady supply of clean water to split.' },
-  { label: 'Start oxygen production', why: 'Oxygen flows into the habitat. The hydrogen is vented or kept to make more water later.' },
+  { label: 'o2s.0', why: 'o2s.0.why' },
+  { label: 'o2s.1', why: 'o2s.1.why' },
+  { label: 'o2s.2', why: 'o2s.2.why' },
 ];
 
 export const life = signal({

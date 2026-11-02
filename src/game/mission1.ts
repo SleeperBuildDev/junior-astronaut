@@ -4,26 +4,26 @@ import { statusMaterials } from '../world/base';
 import { EARTH_DIR } from '../world/sky';
 import { mission, pushComm, screen, unlock, type Step } from './state';
 
-const CAPCOM = 'Mission Control';
+const CAPCOM = 'mc';
 
 const STEPS: Step[] = [
-  { id: 'walk', text: 'Take your first steps (walk 15 m)', done: false },
-  { id: 'jump', text: 'Try a low-gravity jump (Space)', done: false },
-  { id: 'earth', text: 'Find Earth in the sky', done: false },
-  { id: 'reach', text: 'Follow the green beacon to the habitat', done: false },
-  { id: 'scan', text: 'Scan the 3 environment sensors (E)', done: false, progress: '0/3' },
-  { id: 'airlock', text: 'Enter the habitat airlock (E)', done: false },
+  { id: 'walk', text: 'm1.walk', done: false },
+  { id: 'jump', text: 'm1.jump', done: false },
+  { id: 'earth', text: 'm1.earth', done: false },
+  { id: 'reach', text: 'm1.reach', done: false },
+  { id: 'scan', text: 'm1.scan', done: false, progress: '0/3' },
+  { id: 'airlock', text: 'm1.airlock', done: false },
 ];
 
 const LINES: Record<string, { vo: string; text: string }> = {
-  start: { vo: 'm1_01', text: 'Junior Astronaut, this is Mission Control. Welcome to the lunar south pole. Take your first steps away from the lander.' },
-  walk: { vo: 'm1_02', text: "Good steps. Gravity here is only one sixth of Earth's. Press Space and try a jump." },
-  jump: { vo: 'm1_03', text: 'Nice and floaty. Now look out toward the horizon. Can you find Earth?' },
-  earth: { vo: 'm1_04', text: 'There it is. Home, about 380,000 km away. Follow the flashing green beacon to the habitat.' },
-  reach: { vo: 'm1_05', text: 'You have reached the outpost. Before you go inside, scan the three environment sensors around the base.' },
-  sensor: { vo: 'm1_06', text: 'Sensor data received. Keep going.' },
-  scan: { vo: 'm1_07', text: 'All sensors scanned. Great work. Head to the airlock on the west end of the habitat.' },
-  airlock: { vo: 'm1_08', text: 'Airlock pressurising. Mission 1 complete. Welcome to your new home, Junior Astronaut.' },
+  start: { vo: 'm1_01', text: 'c.m1.start' },
+  walk: { vo: 'm1_02', text: 'c.m1.walk' },
+  jump: { vo: 'm1_03', text: 'c.m1.jump' },
+  earth: { vo: 'm1_04', text: 'c.m1.earth' },
+  reach: { vo: 'm1_05', text: 'c.m1.reach' },
+  sensor: { vo: 'm1_06', text: 'c.m1.sensor' },
+  scan: { vo: 'm1_07', text: 'c.m1.scan' },
+  airlock: { vo: 'm1_08', text: 'c.m1.airlock' },
 };
 
 const SENSOR_CARDS = ['temperature', 'radiation', 'regolith'];
@@ -56,7 +56,7 @@ export class Mission1 {
   }
 
   private publish() {
-    mission.value = { title: 'Mission 1: First Steps on the Moon', steps: this.steps.map((s) => ({ ...s })) };
+    mission.value = { title: 'm1.title', steps: this.steps.map((s) => ({ ...s })) };
   }
 
   private complete(id: string) {
@@ -89,7 +89,7 @@ export class Mission1 {
   interact(id: string): string | null {
     if (id.startsWith('sensor-')) {
       const i = Number(id.split('-')[1]);
-      if (this.scanned.has(i)) return 'Already scanned';
+      if (this.scanned.has(i)) return 'w.alreadyScanned';
       this.scanned.add(i);
       this.sensorLights[i].material = statusMaterials.green;
       unlock(SENSOR_CARDS[i]);
@@ -104,7 +104,7 @@ export class Mission1 {
       return null;
     }
     if (id === 'airlock') {
-      if (this.current?.id !== 'airlock') return 'Finish the sensor scans first';
+      if (this.current?.id !== 'airlock') return 'w.scanFirst';
       this.complete('airlock');
       return null;
     }
@@ -112,6 +112,10 @@ export class Mission1 {
   }
 
   sensorLabel(i: number) {
-    return this.scanned.has(i) ? 'Sensor scanned' : 'Scan sensor station';
+    return this.scanned.has(i) ? 'p.scanned' : 'p.scan';
+  }
+
+  isScanned(i: number) {
+    return this.scanned.has(i);
   }
 }

@@ -1,6 +1,8 @@
 // Knowledge Center entries. Science is simplified for young learners; each card says
 // what the game simplifies, so players can tell game rules from real engineering.
 
+import { CARDS_MY } from '../i18n/cards-my';
+
 export interface Card {
   id: string;
   title: string;
@@ -133,3 +135,11 @@ export const CARDS: Record<string, Card> = {
     source: 'NASA ECLSS overview',
   },
 };
+
+/** The card in the current UI language (Burmese falls back to English per field). */
+export function cardFor(id: string, lang: 'en' | 'my'): Card | undefined {
+  const c = CARDS[id];
+  if (!c || lang === 'en') return c;
+  const m = CARDS_MY[id];
+  return m ? { ...c, title: m.title, body: m.body, inGame: m.inGame } : c;
+}

@@ -2,7 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { setVolume } from '../audio/audio';
 import { settings, updateSettings, type Quality } from '../engine/settings';
-import { CARDS } from '../game/knowledge';
+import { cardFor, CARDS } from '../game/knowledge';
 import { life, O2_STEPS, o2Step, SAFE_O2, startWater, terminalOpen, type SysState } from '../game/lifesupport';
 import {
   cardPopup,
@@ -11,16 +11,18 @@ import {
   fps,
   heading,
   holdProgress,
-  missionNumber,
   knowledge,
   loadProgress,
   mission,
+  missionNumber,
   panel,
   prompt,
   screen,
   suit,
   warning,
+  waypoint,
 } from '../game/state';
+import { num, t } from '../i18n';
 
 export interface Actions {
   start: () => void;
@@ -33,21 +35,22 @@ export interface Actions {
 }
 
 const CONTROLS: [string, string][] = [
-  ['W A S D', 'Walk'],
-  ['Mouse', 'Look around'],
-  ['Space', 'Jump (low gravity!)'],
-  ['Shift', 'Hold to sprint (uses more oxygen)'],
-  ['E', 'Use / scan / interact'],
-  ['F', 'Helmet light'],
-  ['K', 'Knowledge Center'],
-  ['Esc', 'Free the mouse and pause'],
-  ['↑ ↓ ← →', 'Look around (for touchpads)'],
+  ['W A S D', 'ctrl.walk'],
+  ['key.mouse', 'ctrl.look'],
+  ['Space', 'ctrl.jump'],
+  ['Shift', 'ctrl.sprint'],
+  ['E', 'ctrl.use'],
+  ['F', 'ctrl.light'],
+  ['K', 'ctrl.kc'],
+  ['Esc', 'ctrl.pause'],
+  ['↑ ↓ ← →', 'ctrl.arrows'],
 ];
 
 function Keys({ k }: { k: string }) {
+  const label = k.startsWith('key.') ? t(k) : k;
   return (
     <span class="keys">
-      {k.split(' ').map((p) => (
+      {label.split(' ').map((p) => (
         <kbd>{p}</kbd>
       ))}
     </span>
@@ -60,27 +63,26 @@ function ControlsCard() {
       {CONTROLS.map(([k, v]) => (
         <div class="ctrl">
           <Keys k={k} />
-          <span>{v}</span>
+          <span>{t(v)}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function Bar({ label, value, unit, warnAt, critAt, invert }: { label: string; value: number; unit: string; warnAt: number; critAt: number; invert?: boolean }) {
-  const level = invert ? (value >= critAt ? 'crit' : value >= warnAt ? 'warn' : 'ok') : value <= critAt ? 'crit' : value <= warnAt ? 'warn' : 'ok';
-  const pct = invert ? Math.min(100, (value / (critAt * 1.25)) * 100) : value;
+function Bar({ label, value, unit, warnAt, critAt }: { label: string; value: number; unit: string; warnAt: number; critAt: number }) {
+  const level = value <= critAt ? 'crit' : value <= warnAt ? 'warn' : 'ok';
   return (
     <div class={`vital ${level}`}>
       <div class="vital-row">
         <span class="vital-label">{label}</span>
         <span class="vital-value">
-          {value.toFixed(unit === 'mSv' ? 2 : 0)}
+          {value.toFixed(0)}
           <small>{unit}</small>
         </span>
       </div>
       <div class="bar">
-        <i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+        <i style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       </div>
     </div>
   );
@@ -107,34 +109,70 @@ function Compass() {
   );
 }
 
+/** Points to the current objective: a marker on it, or an arrow at the screen edge. */
+function Waypoint() {
+  const w = waypoint.value;
+  if (!w) return null;
+  const dist = w.dist === null ? '' : `${Math.round(w.dist)} ${t('hud.m')}`;
+  if (w.onScreen)
+    return (
+      <div class="wp" style={{ left: `${w.x}px`, top: `${w.y}px` }}>
+        <div class="wp-diamond" />
+        <div class="wp-label">
+          {t(w.label)}
+          {dist ? <b> {dist}</b> : null}
+        </div>
+      </div>
+    );
+  return (
+    <div class="wp edge" style={{ left: `${w.x}px`, top: `${w.y}px` }}>
+      <div class="wp-arrow" style={{ transform: `rotate(${w.angle}rad)` }}>
+        ➤
+      </div>
+      <div class="wp-label">
+        {t(w.label)}
+        {dist ? <b> {dist}</b> : null}
+      </div>
+    </div>
+  );
+}
+
 function Hud() {
   const s = suit.value;
   const m = mission.value;
   const c = clock.value;
   const hh = Math.floor(c.minutes / 60) % 24;
   const mm = Math.floor(c.minutes % 60);
+  const firstOpen = m.steps.findIndex((x) => !x.done);
+  const current = firstOpen >= 0 ? m.steps[firstOpen] : null;
   return (
     <div class="hud">
       <div class="visor-edge" />
       <Compass />
+      <Waypoint />
       <div class="panel objective">
-        <div class="panel-title">{m.title}</div>
+        <div class="panel-title">{t(m.title)}</div>
         <ul>
           {m.steps.map((st, i) => {
-            const firstOpen = m.steps.findIndex((x) => !x.done);
             const state = st.done ? 'done' : i === firstOpen ? 'current' : 'todo';
             return (
               <li class={state}>
                 <span class="tick">{st.done ? '✓' : i === firstOpen ? '▸' : '○'}</span>
-                {st.text}
+                {t(st.text)}
                 {st.progress && !st.done ? <em> {st.progress}</em> : null}
               </li>
             );
           })}
         </ul>
+        {current ? (
+          <div class="todo">
+            <span>💡 {t('hud.todo')}</span>
+            <p>{t('h.' + current.text)}</p>
+          </div>
+        ) : null}
       </div>
       <div class="panel clock">
-        <span>MISSION DAY</span>
+        <span>{t('hud.day')}</span>
         <b>{c.day}</b>
         <span>
           {String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} UTC
@@ -143,33 +181,33 @@ function Hud() {
       <div class="comms">
         {comms.value.slice(-2).map((cm) => (
           <div class="comm" key={cm.id}>
-            <span class="from">📡 {cm.from}</span>
-            <p>{cm.text}</p>
+            <span class="from">📡 {t(cm.from)}</span>
+            <p>{t(cm.text)}</p>
           </div>
         ))}
       </div>
       <div class="panel vitals">
-        <div class="panel-title">SUIT STATUS</div>
+        <div class="panel-title">{t('hud.suit')}</div>
         <Bar label="O₂" value={s.o2} unit="%" warnAt={35} critAt={15} />
-        <Bar label="POWER" value={s.power} unit="%" warnAt={30} critAt={12} />
-        <Bar label="HEALTH" value={s.health} unit="%" warnAt={50} critAt={25} />
+        <Bar label={t('hud.power')} value={s.power} unit="%" warnAt={30} critAt={12} />
+        <Bar label={t('hud.health')} value={s.health} unit="%" warnAt={50} critAt={25} />
         <div class="vital-mini">
           <span>
-            SUIT <b>{s.tempIn.toFixed(0)}°C</b>
+            {t('hud.suitTemp')} <b>{s.tempIn.toFixed(0)}°C</b>
           </span>
           <span>
-            OUTSIDE <b>{s.tempOut.toFixed(0)}°C</b>
+            {t('hud.outside')} <b>{s.tempOut.toFixed(0)}°C</b>
           </span>
           <span>
-            DOSE <b>{s.dose.toFixed(2)} mSv</b>
+            {t('hud.dose')} <b>{s.dose.toFixed(2)} mSv</b>
           </span>
-          {s.light ? <span class="lamp">LAMP ON</span> : null}
+          {s.light ? <span class="lamp">{t('hud.lamp')}</span> : null}
         </div>
       </div>
       <div class="crosshair" />
       {prompt.value ? (
         <div class="prompt">
-          <kbd>E</kbd> {prompt.value}
+          <kbd>E</kbd> {t(prompt.value)}
           {holdProgress.value !== null ? (
             <div class="bar hold">
               <i style={{ width: `${Math.round(holdProgress.value * 100)}%` }} />
@@ -177,13 +215,11 @@ function Hud() {
           ) : null}
         </div>
       ) : null}
-      {warning.value ? <div class="warning">⚠ {warning.value}</div> : null}
-      {settings.value.quality && fps.value ? <div class="fps">{fps.value} fps</div> : null}
+      {warning.value ? <div class="warning">⚠ {t(warning.value)}</div> : null}
+      {fps.value ? <div class="fps">{fps.value} fps</div> : null}
     </div>
   );
 }
-
-const STATE_TEXT: Record<SysState, string> = { offline: 'OFFLINE', starting: 'STARTING', online: 'ONLINE', damaged: 'FAULT' };
 
 function SysRow({ name, state, children }: { name: string; state: SysState; children?: ComponentChildren }) {
   return (
@@ -191,7 +227,7 @@ function SysRow({ name, state, children }: { name: string; state: SysState; chil
       <div class="sys-head">
         <span class="led" />
         <b>{name}</b>
-        <span class="sys-state">{STATE_TEXT[state]}</span>
+        <span class="sys-state">{t('state.' + state)}</span>
       </div>
       {children}
     </div>
@@ -205,79 +241,91 @@ function Terminal({ actions }: { actions: Actions }) {
     <div class="modal-backdrop">
       <div class="modal terminal">
         <div class="modal-head">
-          <h2>LSS-1 · Life Support Control</h2>
+          <h2>{t('term.title')}</h2>
           <button class="btn small" onClick={actions.closeTerminal}>
-            Back to suit
+            {t('term.back')}
           </button>
         </div>
         <div class="gauges">
           <div class="gauge">
-            <span>Habitat oxygen</span>
+            <span>{t('term.habO2')}</span>
             <b class={l.habO2 < 19.5 ? 'low' : 'good'}>{l.habO2.toFixed(1)}%</b>
             <div class="bar">
               <i style={{ width: `${o2pct}%` }} />
             </div>
-            <small>Safe: 19.5–23.5% · Earth's air: 20.9%</small>
+            <small>{t('term.safe')}</small>
           </div>
           <div class="gauge">
-            <span>Water tank</span>
+            <span>{t('term.water')}</span>
             <b class={l.waterL < 30 ? 'low' : 'good'}>{l.waterL.toFixed(0)} L</b>
             <div class="bar">
               <i style={{ width: `${(l.waterL / 120) * 100}%` }} />
             </div>
-            <small>Capacity 120 L</small>
+            <small>{t('term.capacity')}</small>
           </div>
         </div>
-        <SysRow name="Oxygen Generator (electrolysis)" state={l.o2gen}>
+        <SysRow name={t('term.o2gen')} state={l.o2gen}>
           <ol class="checklist">
             {O2_STEPS.map((st, i) => (
               <li class={i < l.o2Step ? 'done' : i === l.o2Step ? 'next' : ''}>
                 <button class="btn small" disabled={i !== l.o2Step || l.o2gen === 'online'} onClick={() => o2Step(i)}>
-                  {i < l.o2Step ? '✓' : i + 1}. {st.label}
+                  {i < l.o2Step ? '✓' : num(i + 1)}. {t(st.label)}
                 </button>
-                {i <= l.o2Step ? <small>{st.why}</small> : null}
+                {i <= l.o2Step ? <small>{t(st.why)}</small> : null}
               </li>
             ))}
           </ol>
         </SysRow>
-        <SysRow name="Water Recovery System" state={l.water}>
+        <SysRow name={t('term.wrs')} state={l.water}>
           {l.water === 'damaged' ? (
-            <p class="fault">Filter clogged with regolith dust. Flow blocked. Replace the filter at the front of the unit.</p>
+            <p class="fault">{t('term.fault')}</p>
           ) : (
-            <button class="btn small" disabled={l.water === 'online'} onClick={startWater}>
-              {l.water === 'online' ? '✓ Recovering water' : 'Start water recovery'}
+            <button class="btn small" data-action="start-water" disabled={l.water === 'online'} onClick={startWater}>
+              {l.water === 'online' ? t('term.recovering') : t('term.startWater')}
             </button>
           )}
         </SysRow>
-        <SysRow name="CO₂ Scrubber" state={l.co2}>
-          <small>Removing the carbon dioxide the crew breathes out.</small>
+        <SysRow name={t('term.co2')} state={l.co2}>
+          <small>{t('term.co2text')}</small>
         </SysRow>
       </div>
     </div>
   );
 }
 
+function CardBody({ id }: { id: string }) {
+  const c = cardFor(id, settings.value.lang);
+  if (!c) return null;
+  return (
+    <>
+      {c.body.map((p) => (
+        <p>{p}</p>
+      ))}
+      <p class="ingame">
+        <b>{t('card.ingame')}</b> {c.inGame}
+      </p>
+      <p class="source">
+        {t('card.source')} {c.source}
+      </p>
+    </>
+  );
+}
+
 function KnowledgeCard({ id, onClose }: { id: string; onClose: () => void }) {
-  const c = CARDS[id];
+  const c = cardFor(id, settings.value.lang);
   if (!c) return null;
   return (
     <div class="card">
       <div class="card-head">
         <span class="card-icon">{c.icon}</span>
         <div>
-          <small>KNOWLEDGE UNLOCKED</small>
+          <small>{t('card.unlocked')}</small>
           <h3>{c.title}</h3>
         </div>
       </div>
-      {c.body.map((p) => (
-        <p>{p}</p>
-      ))}
-      <p class="ingame">
-        <b>In this game:</b> {c.inGame}
-      </p>
-      <p class="source">Source: {c.source}</p>
+      <CardBody id={id} />
       <button class="btn small" onClick={onClose}>
-        Got it
+        {t('card.ok')}
       </button>
     </div>
   );
@@ -286,36 +334,31 @@ function KnowledgeCard({ id, onClose }: { id: string; onClose: () => void }) {
 function KnowledgeCenter() {
   const unlocked = knowledge.value;
   const [sel, setSel] = useState<string | null>(unlocked[0] ?? null);
-  const all = Object.values(CARDS);
-  const c = sel ? CARDS[sel] : null;
+  const lang = settings.value.lang;
+  const c = sel ? cardFor(sel, lang) : null;
   return (
     <div class="kc">
       <div class="kc-list">
-        {all.map((card) => {
-          const open = unlocked.includes(card.id);
+        {Object.keys(CARDS).map((id) => {
+          const open = unlocked.includes(id);
+          const card = cardFor(id, lang)!;
           return (
-            <button class={`kc-item ${sel === card.id ? 'sel' : ''}`} disabled={!open} onClick={() => setSel(card.id)}>
-              <span>{open ? card.icon : '🔒'}</span> {open ? card.title : 'Locked'}
+            <button class={`kc-item ${sel === id ? 'sel' : ''}`} disabled={!open} onClick={() => setSel(id)}>
+              <span>{open ? card.icon : '🔒'}</span> {open ? card.title : t('kc.locked')}
             </button>
           );
         })}
       </div>
       <div class="kc-body">
-        {c ? (
+        {c && sel ? (
           <>
             <h3>
               {c.icon} {c.title}
             </h3>
-            {c.body.map((p) => (
-              <p>{p}</p>
-            ))}
-            <p class="ingame">
-              <b>In this game:</b> {c.inGame}
-            </p>
-            <p class="source">Source: {c.source}</p>
+            <CardBody id={sel} />
           </>
         ) : (
-          <p>Explore and complete objectives to unlock science facts.</p>
+          <p>{t('kc.empty')}</p>
         )}
       </div>
     </div>
@@ -326,16 +369,28 @@ function SettingsPanel({ actions }: { actions: Actions }) {
   const s = settings.value;
   return (
     <div class="settings">
+      <div class="quality">
+        {t('set.language')}
+        <div class="seg">
+          <button class={s.lang === 'en' ? 'on' : ''} onClick={() => updateSettings({ lang: 'en' })}>
+            English
+          </button>
+          <button class={s.lang === 'my' ? 'on' : ''} lang="my" onClick={() => updateSettings({ lang: 'my' })}>
+            မြန်မာ
+          </button>
+        </div>
+        <small>{t('set.voiceNote')}</small>
+      </div>
       <label>
-        Mouse sensitivity <b>{s.sensitivity.toFixed(1)}</b>
+        {t('set.sens')} <b>{s.sensitivity.toFixed(1)}</b>
         <input type="range" min="0.2" max="3" step="0.1" value={s.sensitivity} onInput={(e) => updateSettings({ sensitivity: +(e.target as HTMLInputElement).value })} />
       </label>
       <label>
-        Field of view <b>{s.fov}°</b>
+        {t('set.fov')} <b>{s.fov}°</b>
         <input type="range" min="60" max="100" step="1" value={s.fov} onInput={(e) => updateSettings({ fov: +(e.target as HTMLInputElement).value })} />
       </label>
       <label>
-        Volume <b>{Math.round(s.volume * 100)}%</b>
+        {t('set.volume')} <b>{Math.round(s.volume * 100)}%</b>
         <input
           type="range"
           min="0"
@@ -350,24 +405,24 @@ function SettingsPanel({ actions }: { actions: Actions }) {
         />
       </label>
       <label class="check">
-        <input type="checkbox" checked={s.invertY} onChange={(e) => updateSettings({ invertY: (e.target as HTMLInputElement).checked })} /> Invert mouse up/down
+        <input type="checkbox" checked={s.invertY} onChange={(e) => updateSettings({ invertY: (e.target as HTMLInputElement).checked })} /> {t('set.invert')}
       </label>
       <label class="check">
-        <input type="checkbox" checked={s.arrowLook} onChange={(e) => updateSettings({ arrowLook: (e.target as HTMLInputElement).checked })} /> Look with arrow keys
+        <input type="checkbox" checked={s.arrowLook} onChange={(e) => updateSettings({ arrowLook: (e.target as HTMLInputElement).checked })} /> {t('set.arrows')}
       </label>
       <div class="quality">
-        Graphics quality
+        {t('set.quality')}
         <div class="seg">
           {(['low', 'medium', 'high'] as Quality[]).map((q) => (
             <button class={s.quality === q ? 'on' : ''} onClick={() => actions.setQuality(q)}>
-              {q}
+              {t('set.q.' + q)}
             </button>
           ))}
         </div>
-        <small>Use Low on older laptops. Terrain detail changes after a restart.</small>
+        <small>{t('set.qualityHint')}</small>
       </div>
       <button class="btn small" onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())}>
-        Toggle fullscreen
+        {t('set.fullscreen')}
       </button>
     </div>
   );
@@ -377,14 +432,12 @@ function Credits() {
   return (
     <div class="credits">
       <p>
-        <b>Junior Astronaut: Lunar Survival Mission</b> is an educational game. It is not affiliated with or endorsed by NASA.
+        <b>Junior Astronaut: Lunar Survival Mission</b> {t('credits.disclaimer')}
       </p>
       <ul>
-        <li>Moon surface textures and rock scans: Poly Haven "Moon" collection (CC0)</li>
-        <li>Earth images: NASA Visible Earth, Blue Marble (NASA Goddard Space Flight Center)</li>
-        <li>Mission Control voice: Kokoro-82M text-to-speech (Apache-2.0)</li>
-        <li>Fonts: Atkinson Hyperlegible Next, B612 Mono, Orbitron (SIL Open Font License)</li>
-        <li>Engine: three.js, Rapier physics, postprocessing, Preact (MIT/Apache/Zlib)</li>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <li>{t('credits.' + i)}</li>
+        ))}
       </ul>
     </div>
   );
@@ -393,12 +446,11 @@ function Credits() {
 function Panel({ actions }: { actions: Actions }) {
   const p = panel.value;
   if (!p) return null;
-  const titles = { settings: 'Settings', controls: 'Controls', knowledge: 'Knowledge Center', credits: 'Credits & data sources' };
   return (
     <div class="modal-backdrop" onClick={(e) => e.target === e.currentTarget && (panel.value = null)}>
       <div class={`modal ${p}`}>
         <div class="modal-head">
-          <h2>{titles[p]}</h2>
+          <h2>{t('panel.' + p)}</h2>
           <button class="close" onClick={() => (panel.value = null)}>
             ✕
           </button>
@@ -409,6 +461,15 @@ function Panel({ actions }: { actions: Actions }) {
         {p === 'credits' && <Credits />}
       </div>
     </div>
+  );
+}
+
+function Title() {
+  return (
+    <h1>
+      JUNIOR ASTRONAUT
+      <span>{t('menu.subtitle')}</span>
+    </h1>
   );
 }
 
@@ -425,29 +486,26 @@ function Menu({ actions }: { actions: Actions }) {
             <path d="M44 30 l6 -12 l6 12 z" fill="currentColor" />
           </svg>
         </div>
-        <h1>
-          JUNIOR ASTRONAUT
-          <span>Lunar Survival Mission</span>
-        </h1>
-        <p class="tagline">Build and run a research outpost at the Moon's south pole. Keep your crew alive for 30 days.</p>
+        <Title />
+        <p class="tagline">{t('menu.tagline')}</p>
         <div class="menu-buttons">
           <button class="btn primary" onClick={actions.start}>
-            Start Mission 1
+            {t('menu.start')}
           </button>
           <button class="btn" onClick={() => (panel.value = 'controls')}>
-            Controls
+            {t('menu.controls')}
           </button>
           <button class="btn" onClick={() => (panel.value = 'settings')}>
-            Settings
+            {t('menu.settings')}
           </button>
           <button class="btn" onClick={() => (panel.value = 'knowledge')}>
-            Knowledge Center
+            {t('menu.knowledge')}
           </button>
           <button class="btn" onClick={() => (panel.value = 'credits')}>
-            Credits
+            {t('menu.credits')}
           </button>
         </div>
-        <p class="note">Best with a keyboard and mouse on a computer, in Chrome or Edge.</p>
+        <p class="note">{t('menu.note')}</p>
       </div>
     </div>
   );
@@ -457,16 +515,13 @@ function Briefing({ actions }: { actions: Actions }) {
   return (
     <div class="menu briefing">
       <div class="menu-inner wide">
-        <h2>Mission 1 · First Steps on the Moon</h2>
-        <p>
-          You have just landed at the lunar south pole with your crew. Step out of the lander, get used to walking in low gravity, find the outpost and check its
-          environment sensors before going inside.
-        </p>
+        <h2>{t('briefing.m1.title')}</h2>
+        <p>{t('briefing.m1.text')}</p>
         <ControlsCard />
         <button class="btn primary" onClick={actions.resume}>
-          Click to begin
+          {t('briefing.begin')}
         </button>
-        <p class="note">The game captures your mouse. Press Esc any time to free it and pause.</p>
+        <p class="note">{t('briefing.note')}</p>
       </div>
     </div>
   );
@@ -476,25 +531,25 @@ function Paused({ actions }: { actions: Actions }) {
   return (
     <div class="menu paused">
       <div class="menu-inner">
-        <h2>PAUSED</h2>
+        <h2>{t('pause.title')}</h2>
         <div class="menu-buttons">
           <button class="btn primary" onClick={actions.resume}>
-            Resume
+            {t('pause.resume')}
           </button>
           <button class="btn" onClick={() => (panel.value = 'knowledge')}>
-            Knowledge Center
+            {t('menu.knowledge')}
           </button>
           <button class="btn" onClick={() => (panel.value = 'settings')}>
-            Settings
+            {t('menu.settings')}
           </button>
           <button class="btn" onClick={() => (panel.value = 'controls')}>
-            Controls
+            {t('menu.controls')}
           </button>
           <button class="btn" onClick={actions.restart}>
-            Restart mission
+            {t('pause.restart')}
           </button>
           <button class="btn" onClick={actions.toMenu}>
-            Main menu
+            {t('pause.menu')}
           </button>
         </div>
       </div>
@@ -502,47 +557,39 @@ function Paused({ actions }: { actions: Actions }) {
   );
 }
 
-const SUMMARY: Record<number, { title: string; text: string; next?: string }> = {
-  1: {
-    title: 'First Steps on the Moon',
-    text: 'You walked in one-sixth gravity, found Earth, reached the outpost and checked its sensors.',
-    next: 'Mission 2 · Life Support Activation',
-  },
-  2: {
-    title: 'Life Support Activation',
-    text: 'You started the oxygen generator, fixed the water recycler and made the habitat air safe to breathe.',
-  },
-};
+const NEXT_MISSION: Record<number, string | undefined> = { 1: 'complete.m2.name' };
 
 function Complete({ actions }: { actions: Actions }) {
-  const m = SUMMARY[missionNumber.value];
+  const n = missionNumber.value;
+  const next = NEXT_MISSION[n];
   return (
     <div class="menu complete">
       <div class="menu-inner wide">
-        <small class="kicker">MISSION {missionNumber.value} COMPLETE</small>
-        <h2>{m.title}</h2>
+        <small class="kicker">{t('complete.kicker', { n: num(n) })}</small>
+        <h2>{t(`complete.m${n}.title`)}</h2>
         <p>
-          {m.text} You have unlocked {knowledge.value.length} science facts so far.
+          {t(`complete.m${n}.text`)} {t('complete.facts', { n: num(knowledge.value.length) })}
         </p>
-        {m.next ? null : (
+        {next ? null : (
           <p class="next">
-            <b>Next: Mission 3 · Power Up the Outpost</b>, coming in the next build.
+            <b>{t('complete.soonTitle')}</b>
+            {t('complete.soonRest')}
           </p>
         )}
         <div class="menu-buttons row">
           <button class="btn" onClick={() => (panel.value = 'knowledge')}>
-            Review Knowledge Center
+            {t('complete.review')}
           </button>
           <button class="btn" onClick={actions.restart}>
-            Play again
+            {t('complete.again')}
           </button>
-          {m.next ? (
+          {next ? (
             <button class="btn primary" onClick={actions.next}>
-              Continue: {m.next}
+              {t('complete.continue', { name: t(next) })}
             </button>
           ) : (
             <button class="btn primary" onClick={actions.toMenu}>
-              Main menu
+              {t('complete.menu')}
             </button>
           )}
         </div>
@@ -556,7 +603,7 @@ function Loading() {
     <div class="menu loading">
       <div class="menu-inner">
         <h1>
-          JUNIOR ASTRONAUT<span>Preparing the landing site…</span>
+          JUNIOR ASTRONAUT<span>{t('loading')}</span>
         </h1>
         <div class="bar big">
           <i style={{ width: `${Math.round(loadProgress.value * 100)}%` }} />
@@ -569,20 +616,23 @@ function Loading() {
 function PhoneNotice() {
   return (
     <div class="phone">
-      <h1>
-        JUNIOR ASTRONAUT<span>Lunar Survival Mission</span>
-      </h1>
-      <p>This mission needs a computer with a keyboard and mouse. Please open this page on a PC or laptop.</p>
+      <Title />
+      <p>{t('phone')}</p>
     </div>
   );
 }
 
 export function App({ actions }: { actions: Actions }) {
   const [isPhone] = useState(() => matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches);
+  const lang = settings.value.lang;
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.body.classList.toggle('lang-my', lang === 'my');
+  }, [lang]);
   useEffect(() => {
     if (cardPopup.value) {
-      const t = setTimeout(() => (cardPopup.value = null), 14000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => (cardPopup.value = null), 14000);
+      return () => clearTimeout(timer);
     }
   }, [cardPopup.value]);
   if (isPhone) return <PhoneNotice />;

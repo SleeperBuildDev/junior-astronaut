@@ -191,3 +191,26 @@ kbd {
 .fault { color: #ffc2bd; margin: 8px 0 0; }
 .bar.hold { width: 100%; margin-top: 6px; }
 .bar.hold i { background: var(--amber); transition: none; }
+
+/* ---------- guidance ---------- */
+.todo { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.todo span { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--amber); }
+.todo p { margin: 4px 0 0; line-height: 1.45; color: #fff; font-size: 14px; }
+.wp { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+.wp-diamond { width: 14px; height: 14px; border: 2px solid var(--cyan); transform: rotate(45deg); box-shadow: 0 0 10px rgba(95, 212, 255, 0.8); animation: wp-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes wp-pulse { from { opacity: 0.6; } to { opacity: 1; } }
+.wp-label { background: rgba(4, 14, 22, 0.7); border: 1px solid rgba(95, 212, 255, 0.45); border-radius: 6px; padding: 2px 8px; font-size: 13px; white-space: nowrap; }
+.wp-label b { font-family: var(--mono); color: var(--cyan); font-weight: 400; }
+.wp-arrow { color: var(--cyan); font-size: 26px; text-shadow: 0 0 10px rgba(95, 212, 255, 0.9); line-height: 1; }
+
+/* ---------- Burmese ---------- */
+body.lang-my { --body: 'Noto Sans Myanmar', 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif; }
+body.lang-my .hud, body.lang-my .menu, body.lang-my .modal, body.lang-my .card { line-height: 1.75; }
+body.lang-my .panel-title, body.lang-my .vital-row, body.lang-my .vital-mini, body.lang-my .clock, body.lang-my .comm .from,
+body.lang-my .todo span, body.lang-my .card small, body.lang-my .gauge span, body.lang-my .sys-state, body.lang-my .kicker {
+  font-family: 'Noto Sans Myanmar', var(--mono); letter-spacing: 0;
+}
+body.lang-my .menu h2, body.lang-my .modal-head h2 { font-family: 'Noto Sans Myanmar', var(--title); letter-spacing: 0; }
+body.lang-my .menu h1 span { letter-spacing: 0.04em; text-transform: none; }
+body.lang-my .objective { width: 380px; }
+body.lang-my .objective li { padding: 4px 0; }

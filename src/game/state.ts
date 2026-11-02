@@ -48,3 +48,5 @@ export const fps = signal(0);
 export const missionNumber = signal(1);
 /** Progress of a hold-E action, 0..1, or null. */
 export const holdProgress = signal<number | null>(null);
+/** Screen-space guide marker for the current objective (computed every frame in main.ts). */
+export const waypoint = signal<{ x: number; y: number; onScreen: boolean; angle: number; dist: number | null; label: string } | null>(null);

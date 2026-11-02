@@ -9,9 +9,10 @@ export interface Settings {
   quality: Quality;
   volume: number;
   arrowLook: boolean;
+  lang: 'en' | 'my';
 }
 
-const DEFAULTS: Settings = { sensitivity: 1, invertY: false, fov: 75, quality: 'medium', volume: 0.8, arrowLook: true };
+const DEFAULTS: Settings = { sensitivity: 1, invertY: false, fov: 75, quality: 'medium', volume: 0.8, arrowLook: true, lang: 'en' };
 const KEY = 'junior-astronaut.settings';
 
 function load(): Settings {
