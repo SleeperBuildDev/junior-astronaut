@@ -19,9 +19,12 @@ import { createPhysics } from './player/physics';
 import { Player } from './player/player';
 import { App, type Actions } from './ui/App';
 import { loadTextures } from './world/assets';
-import { buildOutpost, type Interactable } from './world/base';
+import { buildOutpost, type Interactable, type OutpostModels } from './world/base';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { heightAt, LAYOUT } from './world/heightfield';
 import { buildRocks } from './world/rocks';
+import { buildTrails } from './world/trails';
 import { buildSky, EARTH_DIR, SUN_DIR } from './world/sky';
 import { buildTerrain, regolithMaterial } from './world/terrain';
 
@@ -139,8 +142,21 @@ async function boot() {
   lamp.target.position.set(0, 0, -5);
   camera.add(lamp, lamp.target);
 
-  const outpost = buildOutpost();
+  const gltf = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  const names = ['hab_module', 'lab_module', 'node_module', 'rover', 'floodlight', 'power_unit'] as const;
+  const loaded = await Promise.all(names.map((n) => gltf.loadAsync(`./assets/models/${n}.glb`)));
+  const models = Object.fromEntries(names.map((n, i) => [n, loaded[i].scene])) as unknown as OutpostModels;
+  const outpost = buildOutpost(models);
   scene.add(outpost.group);
+  // Floodlights light the deep shadows around the base (skipped on Low to save GPU time).
+  if (settings.value.quality !== 'low')
+    for (const f of outpost.floodSpots) {
+      const spot = new THREE.SpotLight(0xffe9cc, 9, 45, 0.6, 0.7, 1.6);
+      spot.position.copy(f.pos);
+      spot.target.position.copy(f.target);
+      scene.add(spot, spot.target);
+    }
+  scene.add(await buildTrails());
   const rocks = await buildRocks(preset.terrainSegments > 260 ? 1600 : 900);
   scene.add(rocks.group);
   loadProgress.value = 0.85;

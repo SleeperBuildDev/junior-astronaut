@@ -37,7 +37,12 @@ def model(asset, res):
 
 
 if __name__ == '__main__':
-    for a in ['moon_01', 'moon_dusted_02', 'moon_meteor_02']:
+    only = sys.argv[1:]
+    for a in ['moon_01', 'moon_dusted_02', 'moon_meteor_02', 'moon_track_01', 'moon_footprints_01']:
+        if only and a not in only:
+            continue
         print(a); texture(a, '1k')
     for r in ['moon_rock_01', 'moon_rock_03', 'moon_rock_05', 'moon_rock_07']:
+        if only and r not in only:
+            continue
         model(r, '1k')

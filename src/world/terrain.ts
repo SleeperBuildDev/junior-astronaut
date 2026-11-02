@@ -99,6 +99,12 @@ export function regolithMaterial(maps: {
         col = mix(vec3(lum), col, 0.3) * 0.86;
         diffuseColor.rgb *= col;
         `,
+      )
+      .replace(
+        'vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',
+        /* glsl */ `vec3 mapN = mix(texture2D(normalMap, vNormalMapUv).xyz, texture2D(normalMap, vNormalMapUv * 0.37 + vec2(0.21, 0.63)).xyz, 0.45) * 2.0 - 1.0;
+        // Fine bumps fade with distance so far ground doesn't shimmer into stripes.
+        mapN.xy *= mix(0.35, 1.0, smoothstep(70.0, 10.0, length(vViewPosition)));`,
       );
   };
   return mat;

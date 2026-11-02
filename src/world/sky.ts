@@ -57,6 +57,33 @@ function starField(count: number) {
   return pts;
 }
 
+/** The Milky Way: many faint stars bunched along a tilted band across the sky. */
+function milkyWay(count: number) {
+  const rand = mulberry32(99);
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  const size = new Float32Array(count);
+  const tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.9, 0.4, 0.3));
+  const v = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    const a = rand() * Math.PI * 2;
+    // gaussian-ish spread around the band, denser towards the galactic centre
+    const g = (rand() + rand() + rand() - 1.5) * 0.22;
+    v.set(Math.cos(a), g * (1.3 - 0.5 * Math.cos(a)), Math.sin(a)).normalize().applyQuaternion(tilt).multiplyScalar(SKY_RADIUS * 0.99);
+    pos.set([v.x, v.y, v.z], i * 3);
+    const b = 0.12 + rand() * 0.22 + Math.max(0, Math.cos(a)) * 0.12;
+    col.set([b * 0.95, b * 0.95, b * 1.05], i * 3);
+    size[i] = 1.0 + rand() * 1.2;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
+  const pts = new THREE.Points(geo, (starField(1).material as THREE.ShaderMaterial).clone());
+  pts.frustumCulled = false;
+  return pts;
+}
+
 function sunDisc() {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 256;
@@ -128,6 +155,7 @@ export function buildSky(dayMap: THREE.Texture, cloudMap: THREE.Texture) {
   group.name = 'sky';
   group.renderOrder = -1;
   group.add(starField(7000));
+  group.add(milkyWay(14000));
   group.add(sunDisc());
   group.add(earth(dayMap, cloudMap));
   return {

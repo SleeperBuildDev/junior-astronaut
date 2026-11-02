@@ -24,6 +24,7 @@ export interface Outpost {
   o2StationPos: THREE.Vector3;
   habitatPos: THREE.Vector3;
   lifeSupport: { pos: THREE.Vector3; lights: { o2: THREE.Mesh; water: THREE.Mesh; co2: THREE.Mesh } };
+  floodSpots: { pos: THREE.Vector3; target: THREE.Vector3 }[];
 }
 
 // ---------- procedural textures ----------
@@ -173,50 +174,6 @@ function strut(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Materia
 }
 
 // ---------- modules ----------
-
-/** A horizontal pressurised module along its local X axis, standing on legs. */
-function habitatModule(length: number, radius: number, label: string) {
-  const g = new THREE.Group();
-  const lift = radius + 0.9;
-  const shell = mesh(new THREE.CylinderGeometry(radius, radius, length, 48, 1, true), mats.shell, g, [0, lift, 0], [0, 0, Math.PI / 2]);
-  shell.name = 'shell';
-  for (const s of [-1, 1]) {
-    const cap = mesh(new THREE.SphereGeometry(radius, 48, 16, 0, Math.PI * 2, 0, Math.PI / 2), mats.shell, g, [(s * length) / 2, lift, 0], [0, 0, -s * Math.PI / 2]);
-    cap.scale.set(1, 0.32, 1);
-  }
-  // structural rings
-  const ringGeo = new THREE.TorusGeometry(radius + 0.035, 0.055, 8, 64);
-  for (let x = -length / 2 + 0.4; x <= length / 2 - 0.39; x += (length - 0.8) / 5) mesh(ringGeo, mats.alu, g, [x, lift, 0], [0, Math.PI / 2, 0]);
-  // MLI foil belly band
-  const belly = mesh(new THREE.CylinderGeometry(radius + 0.012, radius + 0.012, length * 0.86, 48, 1, true, Math.PI * 0.78, Math.PI * 0.44), mats.foil, g, [0, lift, 0], [0, 0, Math.PI / 2]);
-  belly.castShadow = false;
-  // windows on both sides
-  const winGeo = new THREE.CircleGeometry(0.32, 32);
-  const frameGeo = new THREE.TorusGeometry(0.34, 0.05, 8, 32);
-  for (const side of [-1, 1])
-    for (const x of [-length * 0.22, length * 0.22]) {
-      const z = side * (radius + 0.01);
-      mesh(winGeo, mats.glass, g, [x, lift + 0.25, z], [0, side > 0 ? 0 : Math.PI, 0]).castShadow = false;
-      mesh(frameGeo, mats.dark, g, [x, lift + 0.25, z], [0, side > 0 ? 0 : Math.PI, 0]);
-    }
-  // label band
-  const lab = new THREE.MeshStandardMaterial({ map: labelTexture(label), roughness: 0.6 });
-  mesh(new THREE.CylinderGeometry(radius + 0.02, radius + 0.02, 1.4, 32, 1, true, -0.35, 0.7), lab, g, [length * 0.05, lift, 0], [Math.PI / 2, 0, Math.PI / 2]);
-  // legs with footpads
-  for (const x of [-length * 0.32, length * 0.32])
-    for (const z of [-radius * 0.62, radius * 0.62]) {
-      strut(new THREE.Vector3(x, 0.08, z * 1.25), new THREE.Vector3(x, lift - radius * 0.8, z), 0.08, mats.alu, g);
-      mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.1, 16), mats.dark, g, [x, 0.05, z * 1.25]);
-    }
-  // utility pipes along the top
-  for (const off of [-0.35, 0.35]) {
-    const y = lift + radius + 0.12;
-    tube([new THREE.Vector3(-length / 2 + 0.3, y - 0.05, off), new THREE.Vector3(0, y, off), new THREE.Vector3(length / 2 - 0.3, y - 0.05, off)], 0.06, off > 0 ? mats.alu : mats.foil, g);
-  }
-  // handrail
-  tube([new THREE.Vector3(-length / 2 + 0.6, lift - 0.4, radius + 0.25), new THREE.Vector3(length / 2 - 0.6, lift - 0.4, radius + 0.25)], 0.03, mats.hazard, g);
-  return { group: g, lift };
-}
 
 function airlock(radius: number) {
   const g = new THREE.Group();
@@ -396,7 +353,27 @@ function lifeSupportUnit() {
 
 // ---------- outpost ----------
 
-export function buildOutpost(): Outpost {
+/** Detailed models built in Blender (tools/blender/outpost_assets.py). */
+export type OutpostModels = Record<'hab_module' | 'lab_module' | 'node_module' | 'rover' | 'floodlight' | 'power_unit', THREE.Object3D>;
+
+function instance(model: THREE.Object3D) {
+  const o = model.clone(true);
+  o.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) c.castShadow = c.receiveShadow = true;
+  });
+  return o;
+}
+
+/** A curved name band on a module's shell. */
+function moduleLabel(radius: number, lift: number, text: string) {
+  const lab = new THREE.MeshStandardMaterial({ map: labelTexture(text), roughness: 0.6, transparent: false });
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.03, radius + 0.03, 1.3, 32, 1, true, -0.32, 0.64), lab);
+  m.position.set(0, lift, 0);
+  m.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+  return m;
+}
+
+export function buildOutpost(models: OutpostModels): Outpost {
   initTextures();
   const group = new THREE.Group();
   group.name = 'outpost';
@@ -416,18 +393,23 @@ export function buildOutpost(): Outpost {
   };
 
   // Habitat (along X) + node + lab (along Z)
-  const hab = habitatModule(9, 2.1, 'HAB-1');
+  const hab = { group: instance(models.hab_module), lift: 3.0 };
+  const habLabel = moduleLabel(2.1, 3.0, 'HAB-1');
+  habLabel.position.x = 0.9;
+  hab.group.add(habLabel);
   place(hab.group, bx, bz, 0, by);
   colliders.push({ kind: 'box', center: new THREE.Vector3(bx, by + hab.lift, bz), half: new THREE.Vector3(5.2, 2.15, 2.2) });
 
-  const node = new THREE.Group();
-  mesh(new THREE.SphereGeometry(2.0, 32, 24), mats.shell, node, [0, hab.lift, 0]);
-  mesh(new THREE.CylinderGeometry(1.1, 1.1, 1.6, 24), mats.alu, node, [0, hab.lift, 0], [0, 0, Math.PI / 2]).position.x = -1.6;
-  place(node, bx + 6.4, bz, 0, by);
+  // The node's third port faces north toward the lab.
+  const node = instance(models.node_module);
+  place(node, bx + 6.4, bz, Math.PI, by);
   colliders.push({ kind: 'ball', center: new THREE.Vector3(bx + 6.4, by + hab.lift, bz), radius: 2.1 });
 
-  const lab = habitatModule(8, 1.9, 'LAB-1');
-  place(lab.group, bx + 6.4, bz - 6.3, Math.PI / 2, by);
+  const lab = { group: instance(models.lab_module), lift: 2.8 };
+  const labLabel = moduleLabel(1.9, 2.8, 'LAB-1');
+  labLabel.position.x = -1.2;
+  lab.group.add(labLabel);
+  place(lab.group, bx + 6.4, bz - 6.9, Math.PI / 2, by);
   colliders.push({ kind: 'box', center: new THREE.Vector3(bx + 6.4, by + lab.lift, bz - 6.6), half: new THREE.Vector3(2.0, 2.0, 4.8) });
 
   const lock = airlock(2.1);
@@ -480,6 +462,27 @@ export function buildOutpost(): Outpost {
   const beacon = mesh(new THREE.SphereGeometry(0.22, 16, 12), mats.green, group, [bx + 2.5, by + 9.2, bz]);
   blinkers.push({ mesh: beacon, period: 1.0, phase: 0.3 });
 
+  // Parked surface rover, the power unit and floodlight masts around the work area
+  const rover = instance(models.rover);
+  place(rover, bx - 9, bz + 12, -0.5, by);
+  colliders.push({ kind: 'box', center: new THREE.Vector3(bx - 9, by + 0.9, bz + 12), half: new THREE.Vector3(1.9, 0.9, 1.25), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.5, 0)) });
+
+  const pdu = instance(models.power_unit);
+  place(pdu, bx + 15, bz - 9, 0.3, by);
+  colliders.push({ kind: 'box', center: new THREE.Vector3(bx + 15, by + 1.4, bz - 9), half: new THREE.Vector3(1.4, 1.4, 1.0), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0.3, 0)) });
+
+  const floodSpots: { pos: THREE.Vector3; target: THREE.Vector3 }[] = [];
+  for (const [x, z] of [[-14, -8], [10, 14], [20, -22]]) {
+    const fl = instance(models.floodlight);
+    const fx = bx + x;
+    const fz = bz + z;
+    const fy = heightAt(fx, fz);
+    // aim the light heads at the habitat
+    place(fl, fx, fz, Math.atan2(-(bz - fz), bx - fx) , fy);
+    colliders.push({ kind: 'cylinder', center: new THREE.Vector3(fx, fy + 3, fz), halfHeight: 3, radius: 0.3 });
+    floodSpots.push({ pos: new THREE.Vector3(fx, fy + 5.9, fz), target: new THREE.Vector3(bx, by + 1, bz) });
+  }
+
   // Crates near the habitat
   for (const [x, z, r, w, h, d] of [
     [-3, 7, 0.2, 1.2, 0.9, 0.9],
@@ -505,6 +508,15 @@ export function buildOutpost(): Outpost {
     group.add(mk);
   }
   place(lander(), LAYOUT.lander.x, LAYOUT.lander.z, 0, ly);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const px = LAYOUT.lander.x + Math.cos(a) * 10.2;
+    const pz = LAYOUT.lander.z + Math.sin(a) * 10.2;
+    const py = heightAt(px, pz);
+    mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.35, 10), mats.dark, group, [px, py + 0.17, pz]);
+    const bulb = mesh(new THREE.SphereGeometry(0.09, 10, 8), mats.amber, group, [px, py + 0.4, pz]);
+    blinkers.push({ mesh: bulb, period: 2.4, phase: i * 0.3 });
+  }
   colliders.push({ kind: 'cylinder', center: new THREE.Vector3(LAYOUT.lander.x, ly + 2.6, LAYOUT.lander.z), halfHeight: 2.0, radius: 2.3 });
 
   // Environment sensors for the Mission 1 inspection
@@ -531,6 +543,7 @@ export function buildOutpost(): Outpost {
     colliders,
     interactables,
     lifeSupport: { pos: new THREE.Vector3(lx, by, lz), lights: ls.lights },
+    floodSpots,
     blinkers,
     sensorLights,
     airlockPos: new THREE.Vector3(bx - 7.1, by, bz),
