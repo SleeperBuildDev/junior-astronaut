@@ -163,3 +163,31 @@ kbd {
 .phone { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 24px; text-align: center; background: #000; }
 .phone h1 { font-family: var(--title); }
 .phone h1 span { display: block; font-size: 0.5em; color: var(--cyan); }
+
+/* ---------- life support terminal ---------- */
+.terminal { width: min(820px, 94vw); border-color: rgba(95, 212, 255, 0.5); font-size: 15px; }
+.gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.gauge { background: rgba(255, 255, 255, 0.04); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.gauge span { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+.gauge b { font-family: var(--mono); font-size: 28px; }
+.gauge b.low { color: var(--amber); }
+.gauge b.good { color: var(--green); }
+.gauge small, .sys small { color: var(--dim); }
+.sys { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+.sys-head { display: flex; align-items: center; gap: 10px; }
+.sys-state { margin-left: auto; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; }
+.led { width: 10px; height: 10px; border-radius: 50%; background: var(--red); box-shadow: 0 0 8px var(--red); }
+.sys.online .led { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.sys.online .sys-state { color: var(--green); }
+.sys.starting .led, .sys.offline .led { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.sys.damaged .sys-state { color: var(--red); }
+.checklist { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.checklist li { display: flex; flex-direction: column; gap: 3px; }
+.checklist .btn { text-align: left; }
+.checklist li.next .btn { border-color: var(--cyan); }
+.checklist li.done .btn { color: var(--green); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.checklist li.done .btn:disabled { opacity: 0.85; }
+.fault { color: #ffc2bd; margin: 8px 0 0; }
+.bar.hold { width: 100%; margin-top: 6px; }
+.bar.hold i { background: var(--amber); transition: none; }

@@ -23,6 +23,7 @@ export interface Outpost {
   airlockPos: THREE.Vector3;
   o2StationPos: THREE.Vector3;
   habitatPos: THREE.Vector3;
+  lifeSupport: { pos: THREE.Vector3; lights: { o2: THREE.Mesh; water: THREE.Mesh; co2: THREE.Mesh } };
 }
 
 // ---------- procedural textures ----------
@@ -353,6 +354,46 @@ function crate(w: number, h: number, d: number) {
   return g;
 }
 
+/** Life Support unit (ECLSS skid): oxygen generator, water recovery, CO2 scrubber, terminal. */
+function lifeSupportUnit() {
+  const g = new THREE.Group();
+  mesh(new RoundedBoxGeometry(4.8, 0.22, 2.7, 2, 0.05), mats.dark, g, [0, 0.4, 0]);
+  for (const [x, z] of [[-2.2, -1.1], [2.2, -1.1], [2.2, 1.1], [-2.2, 1.1]]) mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.4, 8), mats.alu, g, [x, 0.2, z]);
+  // Oxygen generator: an electrolysis stack with cooling fins
+  mesh(new RoundedBoxGeometry(1.2, 1.4, 1.1, 2, 0.06), mats.white, g, [-1.5, 1.21, -0.2]);
+  for (let i = 0; i < 9; i++) mesh(new THREE.BoxGeometry(0.04, 1.1, 1.16), mats.alu, g, [-2.02 + i * 0.13, 1.21, -0.2]);
+  const o2Label = new THREE.MeshStandardMaterial({ map: labelTexture('O2 GEN'), roughness: 0.6 });
+  mesh(new THREE.PlaneGeometry(0.9, 0.22), o2Label, g, [-1.5, 1.6, 0.36]);
+  // Oxygen storage tank
+  mesh(new THREE.CapsuleGeometry(0.42, 1.0, 8, 20), new THREE.MeshStandardMaterial({ color: 0xdfe6ee, roughness: 0.45, metalness: 0.15 }), g, [-0.3, 1.35, -0.65]);
+  mesh(new THREE.TorusGeometry(0.43, 0.03, 6, 24), mats.hazard, g, [-0.3, 1.35, -0.65], [Math.PI / 2, 0, 0]);
+  // Water recovery unit with a removable filter housing at the front
+  mesh(new RoundedBoxGeometry(1.4, 1.25, 1.15, 2, 0.06), mats.white, g, [1.05, 1.14, -0.15]);
+  const wLabel = new THREE.MeshStandardMaterial({ map: labelTexture('H2O RECOVERY'), roughness: 0.6 });
+  mesh(new THREE.PlaneGeometry(1.1, 0.22), wLabel, g, [1.05, 1.58, 0.43]);
+  const filter = mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.55, 20), mats.hazard, g, [1.05, 0.95, 0.68], [Math.PI / 2, 0, 0]);
+  filter.name = 'ls-filter';
+  mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.06, 20), mats.dark, g, [1.05, 0.95, 0.97], [Math.PI / 2, 0, 0]);
+  // Water tank
+  mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.3, 24), mats.white, g, [2.05, 1.16, -0.55]);
+  mesh(new THREE.CylinderGeometry(0.505, 0.505, 0.18, 24), new THREE.MeshStandardMaterial({ color: 0x2f7fd0, roughness: 0.4 }), g, [2.05, 1.3, -0.55]);
+  // CO2 scrubber canister
+  mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.9, 16), mats.alu, g, [2.05, 0.96, 0.75]);
+  // Status lights, one per system
+  const light = (x: number, z: number) => mesh(new THREE.SphereGeometry(0.07, 12, 8), mats.red, g, [x, 2.0, z]);
+  const lights = { o2: light(-1.5, -0.2), water: light(1.05, -0.15), co2: light(2.05, 0.75) };
+  lights.co2.position.y = 1.5;
+  // Control terminal on a post at the front
+  strut(new THREE.Vector3(-0.2, 0.5, 1.45), new THREE.Vector3(-0.2, 1.25, 1.45), 0.06, mats.alu, g);
+  const term = mesh(new RoundedBoxGeometry(0.8, 0.55, 0.1, 2, 0.03), mats.dark, g, [-0.2, 1.45, 1.5], [-0.5, 0, 0]);
+  term.name = 'ls-terminal';
+  mesh(new THREE.PlaneGeometry(0.66, 0.42), mats.cyan, g, [-0.2, 1.47, 1.56], [-0.5, 0, 0]).castShadow = false;
+  // Pipes to the habitat node
+  tube([new THREE.Vector3(-2.2, 1.0, -0.6), new THREE.Vector3(-3.4, 1.6, -0.9), new THREE.Vector3(-4.4, 2.6, -1.4)], 0.06, mats.alu, g);
+  tube([new THREE.Vector3(-2.2, 0.7, 0.2), new THREE.Vector3(-3.5, 1.2, -0.4), new THREE.Vector3(-4.6, 2.2, -1.0)], 0.05, mats.foil, g);
+  return { group: g, lights, filter, term };
+}
+
 // ---------- outpost ----------
 
 export function buildOutpost(): Outpost {
@@ -476,10 +517,20 @@ export function buildOutpost(): Outpost {
     interactables.push({ id: 'sensor-' + i, object: st.box, label: () => 'Scan sensor station' });
   });
 
+  // Life Support unit east of the node
+  const ls = lifeSupportUnit();
+  const lx = bx + 13;
+  const lz = bz + 2.5;
+  place(ls.group, lx, lz, 0, by);
+  colliders.push({ kind: 'box', center: new THREE.Vector3(lx, by + 1.05, lz - 0.1), half: new THREE.Vector3(2.45, 1.05, 1.35) });
+  interactables.push({ id: 'ls-terminal', object: ls.term, label: () => 'Open life support terminal' });
+  interactables.push({ id: 'ls-filter', object: ls.filter, label: () => 'Inspect recycler filter' });
+
   return {
     group,
     colliders,
     interactables,
+    lifeSupport: { pos: new THREE.Vector3(lx, by, lz), lights: ls.lights },
     blinkers,
     sensorLights,
     airlockPos: new THREE.Vector3(bx - 7.1, by, bz),

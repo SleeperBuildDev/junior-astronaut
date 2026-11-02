@@ -1,13 +1,17 @@
+import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { setVolume } from '../audio/audio';
 import { settings, updateSettings, type Quality } from '../engine/settings';
 import { CARDS } from '../game/knowledge';
+import { life, O2_STEPS, o2Step, SAFE_O2, startWater, terminalOpen, type SysState } from '../game/lifesupport';
 import {
   cardPopup,
   clock,
   comms,
   fps,
   heading,
+  holdProgress,
+  missionNumber,
   knowledge,
   loadProgress,
   mission,
@@ -23,6 +27,8 @@ export interface Actions {
   resume: () => void;
   restart: () => void;
   toMenu: () => void;
+  next: () => void;
+  closeTerminal: () => void;
   setQuality: (q: Quality) => void;
 }
 
@@ -164,10 +170,89 @@ function Hud() {
       {prompt.value ? (
         <div class="prompt">
           <kbd>E</kbd> {prompt.value}
+          {holdProgress.value !== null ? (
+            <div class="bar hold">
+              <i style={{ width: `${Math.round(holdProgress.value * 100)}%` }} />
+            </div>
+          ) : null}
         </div>
       ) : null}
       {warning.value ? <div class="warning">⚠ {warning.value}</div> : null}
       {settings.value.quality && fps.value ? <div class="fps">{fps.value} fps</div> : null}
+    </div>
+  );
+}
+
+const STATE_TEXT: Record<SysState, string> = { offline: 'OFFLINE', starting: 'STARTING', online: 'ONLINE', damaged: 'FAULT' };
+
+function SysRow({ name, state, children }: { name: string; state: SysState; children?: ComponentChildren }) {
+  return (
+    <div class={`sys ${state}`}>
+      <div class="sys-head">
+        <span class="led" />
+        <b>{name}</b>
+        <span class="sys-state">{STATE_TEXT[state]}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Terminal({ actions }: { actions: Actions }) {
+  const l = life.value;
+  const o2pct = Math.max(0, Math.min(100, ((l.habO2 - 12) / (SAFE_O2 - 12)) * 100));
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal">
+        <div class="modal-head">
+          <h2>LSS-1 · Life Support Control</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            Back to suit
+          </button>
+        </div>
+        <div class="gauges">
+          <div class="gauge">
+            <span>Habitat oxygen</span>
+            <b class={l.habO2 < 19.5 ? 'low' : 'good'}>{l.habO2.toFixed(1)}%</b>
+            <div class="bar">
+              <i style={{ width: `${o2pct}%` }} />
+            </div>
+            <small>Safe: 19.5–23.5% · Earth's air: 20.9%</small>
+          </div>
+          <div class="gauge">
+            <span>Water tank</span>
+            <b class={l.waterL < 30 ? 'low' : 'good'}>{l.waterL.toFixed(0)} L</b>
+            <div class="bar">
+              <i style={{ width: `${(l.waterL / 120) * 100}%` }} />
+            </div>
+            <small>Capacity 120 L</small>
+          </div>
+        </div>
+        <SysRow name="Oxygen Generator (electrolysis)" state={l.o2gen}>
+          <ol class="checklist">
+            {O2_STEPS.map((st, i) => (
+              <li class={i < l.o2Step ? 'done' : i === l.o2Step ? 'next' : ''}>
+                <button class="btn small" disabled={i !== l.o2Step || l.o2gen === 'online'} onClick={() => o2Step(i)}>
+                  {i < l.o2Step ? '✓' : i + 1}. {st.label}
+                </button>
+                {i <= l.o2Step ? <small>{st.why}</small> : null}
+              </li>
+            ))}
+          </ol>
+        </SysRow>
+        <SysRow name="Water Recovery System" state={l.water}>
+          {l.water === 'damaged' ? (
+            <p class="fault">Filter clogged with regolith dust. Flow blocked. Replace the filter at the front of the unit.</p>
+          ) : (
+            <button class="btn small" disabled={l.water === 'online'} onClick={startWater}>
+              {l.water === 'online' ? '✓ Recovering water' : 'Start water recovery'}
+            </button>
+          )}
+        </SysRow>
+        <SysRow name="CO₂ Scrubber" state={l.co2}>
+          <small>Removing the carbon dioxide the crew breathes out.</small>
+        </SysRow>
+      </div>
     </div>
   );
 }
@@ -417,16 +502,33 @@ function Paused({ actions }: { actions: Actions }) {
   );
 }
 
+const SUMMARY: Record<number, { title: string; text: string; next?: string }> = {
+  1: {
+    title: 'First Steps on the Moon',
+    text: 'You walked in one-sixth gravity, found Earth, reached the outpost and checked its sensors.',
+    next: 'Mission 2 · Life Support Activation',
+  },
+  2: {
+    title: 'Life Support Activation',
+    text: 'You started the oxygen generator, fixed the water recycler and made the habitat air safe to breathe.',
+  },
+};
+
 function Complete({ actions }: { actions: Actions }) {
+  const m = SUMMARY[missionNumber.value];
   return (
     <div class="menu complete">
       <div class="menu-inner wide">
-        <small class="kicker">MISSION COMPLETE</small>
-        <h2>First Steps on the Moon</h2>
-        <p>You walked in one-sixth gravity, found Earth, reached the outpost and checked its sensors. You unlocked {knowledge.value.length} science facts.</p>
-        <p class="next">
-          <b>Next: Mission 2 · Life Support Activation</b>, coming in the next build.
+        <small class="kicker">MISSION {missionNumber.value} COMPLETE</small>
+        <h2>{m.title}</h2>
+        <p>
+          {m.text} You have unlocked {knowledge.value.length} science facts so far.
         </p>
+        {m.next ? null : (
+          <p class="next">
+            <b>Next: Mission 3 · Power Up the Outpost</b>, coming in the next build.
+          </p>
+        )}
         <div class="menu-buttons row">
           <button class="btn" onClick={() => (panel.value = 'knowledge')}>
             Review Knowledge Center
@@ -434,9 +536,15 @@ function Complete({ actions }: { actions: Actions }) {
           <button class="btn" onClick={actions.restart}>
             Play again
           </button>
-          <button class="btn primary" onClick={actions.toMenu}>
-            Main menu
-          </button>
+          {m.next ? (
+            <button class="btn primary" onClick={actions.next}>
+              Continue: {m.next}
+            </button>
+          ) : (
+            <button class="btn primary" onClick={actions.toMenu}>
+              Main menu
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -487,7 +595,8 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'briefing' && <Briefing actions={actions} />}
       {sc === 'paused' && !panel.value && <Paused actions={actions} />}
       {sc === 'complete' && <Complete actions={actions} />}
-      {sc === 'playing' && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
+      {sc === 'playing' && terminalOpen.value && <Terminal actions={actions} />}
+      {sc === 'playing' && !terminalOpen.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>
   );

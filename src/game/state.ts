@@ -44,3 +44,7 @@ export function unlock(id: string) {
 }
 
 export const fps = signal(0);
+/** The mission currently loaded (1-based). */
+export const missionNumber = signal(1);
+/** Progress of a hold-E action, 0..1, or null. */
+export const holdProgress = signal<number | null>(null);

@@ -88,4 +88,48 @@ export const CARDS: Record<string, Card> = {
     inGame: 'This outpost sits on a sunny ridge. The tall solar arrays stand upright to catch the low Sun.',
     source: 'NASA Artemis: lunar south pole regions',
   },
+  lifesupport: {
+    id: 'lifesupport',
+    title: 'Life support',
+    icon: '🫁',
+    body: [
+      'A life support system keeps the air, water and temperature inside a habitat safe. Without it, astronauts could survive only minutes on the Moon.',
+      'Each astronaut uses roughly 0.8 kg of oxygen and several litres of water every day. Bringing all of that from Earth would be very expensive, so long missions make and recycle as much as they can.',
+    ],
+    inGame: 'Your outpost uses one combined life support unit. Real stations split the jobs across several racks.',
+    source: 'NASA Life Support Baseline Values and Assumptions Document',
+  },
+  electrolysis: {
+    id: 'electrolysis',
+    title: 'Making oxygen from water',
+    icon: '⚡',
+    body: [
+      'The oxygen generator uses electrolysis: electricity splits water (H₂O) into hydrogen (H₂) and oxygen (O₂). The International Space Station makes most of its oxygen this way.',
+      'On the Moon, water could come from ice hidden in cold, shadowed craters. Oxygen can also be pulled out of the regolith itself, which is about 40% oxygen by weight, locked inside minerals.',
+    ],
+    inGame: 'The generator fills the habitat in seconds. A real one takes much longer.',
+    source: 'NASA ISS Oxygen Generation System',
+  },
+  water: {
+    id: 'water',
+    title: 'Recycling every drop',
+    icon: '💧',
+    body: [
+      "On the ISS, the Water Recovery System cleans sweat, breath moisture and even urine back into drinking water. In 2023 it reached a 98% recovery rate.",
+      'Recycling matters because resupply from Earth is slow and costly. The more water a base recovers, the longer the crew can stay.',
+    ],
+    inGame: 'A clogged filter stopped recovery here. Moon dust getting into machines is a real worry for engineers.',
+    source: 'NASA (2023): ISS reaches 98% water recovery',
+  },
+  air: {
+    id: 'air',
+    title: 'Safe air to breathe',
+    icon: '🌬️',
+    body: [
+      "Earth's air is about 21% oxygen. Below about 19.5%, people start to tire and think less clearly, so habitats keep oxygen close to Earth levels.",
+      'Breathing also adds carbon dioxide (CO₂). Too much makes people sick, so scrubbers remove CO₂ from the air all the time.',
+    ],
+    inGame: 'The habitat oxygen gauge shows the oxygen share of the cabin air.',
+    source: 'NASA ECLSS overview',
+  },
 };

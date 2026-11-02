@@ -8,8 +8,10 @@ import { render, h } from 'preact';
 import { beep, playVoice, setExertion, startAudio, thud } from './audio/audio';
 import { createRenderer, Pipeline, PRESETS } from './engine/renderer';
 import { settings, updateSettings, type Quality } from './engine/settings';
+import { resetLife, simulateLife, terminalOpen } from './game/lifesupport';
 import { Mission1 } from './game/mission1';
-import { clock, comms, fps, heading, knowledge, loadProgress, panel, prompt, pushComm, screen, suit, warning } from './game/state';
+import { FILTER_HOLD_SECONDS, Mission2 } from './game/mission2';
+import { clock, comms, fps, heading, holdProgress, knowledge, loadProgress, missionNumber, panel, prompt, pushComm, screen, suit, warning } from './game/state';
 import { Input } from './player/input';
 import { createPhysics } from './player/physics';
 import { Player } from './player/player';
@@ -47,6 +49,7 @@ async function boot() {
 
   let player: Player | null = null;
   let mission1: Mission1 | null = null;
+  let mission2: Mission2 | null = null;
   let started = false;
   let lowO2Warned = false;
 
@@ -64,8 +67,18 @@ async function boot() {
       screen.value = 'playing';
       if (!started) {
         started = true;
-        mission1!.begin();
+        if (missionNumber.value === 2) mission2!.begin();
+        else mission1!.begin();
       }
+    },
+    next() {
+      missionNumber.value = 2;
+      resetMission();
+      void actions.resume();
+    },
+    closeTerminal() {
+      terminalOpen.value = false;
+      void actions.resume();
     },
     restart() {
       resetMission();
@@ -74,6 +87,7 @@ async function boot() {
     toMenu() {
       input.unlock();
       input.enabled = false;
+      missionNumber.value = 1;
       resetMission();
       screen.value = 'menu';
     },
@@ -88,7 +102,7 @@ async function boot() {
   render(h(App, { actions }), document.getElementById('ui-root')!);
 
   input.onLockChange = (locked) => {
-    if (!locked && screen.value === 'playing' && !QA) screen.value = 'paused';
+    if (!locked && screen.value === 'playing' && !terminalOpen.value && !QA) screen.value = 'paused';
   };
 
   // ---------- world ----------
@@ -141,17 +155,25 @@ async function boot() {
     void playVoice('boundary');
   };
   mission1 = new Mission1(outpost.habitatPos, outpost.sensorLights);
+  mission2 = new Mission2(outpost.lifeSupport.pos, outpost.lifeSupport.lights);
+  // Mission 2 starts just outside the airlock, as if the crew had rested inside.
+  const m2Start = new THREE.Vector3(LAYOUT.base.x - 9, 0, LAYOUT.base.z + 4);
+  m2Start.y = heightAt(m2Start.x, m2Start.z);
+  const m2Yaw = Math.atan2(-(outpost.lifeSupport.pos.x - m2Start.x), -(outpost.lifeSupport.pos.z - m2Start.z));
   loadProgress.value = 1;
 
   function resetMission() {
     started = false;
-    player!.teleport(startPos, startYaw);
+    terminalOpen.value = false;
+    resetLife();
+    if (missionNumber.value === 2) player!.teleport(m2Start, m2Yaw);
+    else player!.teleport(startPos, startYaw);
     player!.pitch = 0;
     player!.stats = { distance: 0, jumps: 0 };
     suit.value = { o2: 100, power: 100, health: 100, tempIn: 21, tempOut: -48, dose: 0, light: false };
     clock.value = { day: 1, minutes: 6 * 60 + 10 };
     comms.value = [];
-    knowledge.value = [];
+    if (missionNumber.value === 1) knowledge.value = [];
     warning.value = null;
     lowO2Warned = false;
   }
@@ -170,6 +192,8 @@ async function boot() {
 
   function labelFor(it: Interactable) {
     if (it.id.startsWith('sensor-')) return mission1!.sensorLabel(Number(it.id.split('-')[1]));
+    const m2 = missionNumber.value === 2 ? mission2!.label(it.id) : null;
+    if (m2) return m2;
     if (it.id === 'o2') return suit.value.o2 > 98 ? 'Oxygen tank full' : 'Refill suit oxygen';
     return it.label();
   }
@@ -184,12 +208,14 @@ async function boot() {
       void playVoice('o2_refill');
       return;
     }
-    const reason = mission1!.interact(it.id);
+    const reason = missionNumber.value === 2 ? mission2!.interact(it.id) : mission1!.interact(it.id);
     if (reason) {
       beep('warn');
       flash(reason);
     }
+    if (terminalOpen.value) input.unlock();
   }
+  let holdTime = 0;
 
   // ---------- loop ----------
   let fpsAcc = 0;
@@ -202,12 +228,28 @@ async function boot() {
   renderer.setAnimationLoop((t) => {
     timer.update(t);
     const dt = Math.min(timer.getDelta(), 0.1);
-    const playing = screen.value === 'playing' && !panel.value;
+    const inMission = screen.value === 'playing' && !panel.value;
+    const playing = inMission && !terminalOpen.value;
 
     if (player) {
       player.update(dt, playing);
       if (playing) {
-        if (input.pressed('KeyE') && focused) use(focused);
+        const holdId = missionNumber.value === 2 ? mission2!.holdId : null;
+        if (focused && holdId && focused.id === holdId) {
+          // Hold E to do a repair: keep looking at the part while holding the key.
+          input.pressed('KeyE');
+          holdTime = input.isDown('KeyE') ? holdTime + dt : 0;
+          holdProgress.value = holdTime > 0 ? Math.min(1, holdTime / FILTER_HOLD_SECONDS) : null;
+          if (holdTime >= FILTER_HOLD_SECONDS) {
+            holdTime = 0;
+            holdProgress.value = null;
+            mission2!.holdComplete(holdId);
+          }
+        } else {
+          holdTime = 0;
+          holdProgress.value = null;
+          if (input.pressed('KeyE') && focused) use(focused);
+        }
         if (input.pressed('KeyF')) {
           suit.value = { ...suit.value, light: !suit.value.light };
           beep('select');
@@ -222,9 +264,14 @@ async function boot() {
         focused = hit ? (byObject.get(hit.object) ?? null) : null;
         prompt.value = focused ? labelFor(focused) : null;
 
-        mission1!.update(dt, { distance: player.stats.distance, jumps: player.stats.jumps, feet: player.feet, look: player.forward() });
+        if (missionNumber.value === 1) mission1!.update(dt, { distance: player.stats.distance, jumps: player.stats.jumps, feet: player.feet, look: player.forward() });
         simulateSuit(dt);
       } else prompt.value = null;
+      if (inMission && missionNumber.value === 2) {
+        // Life support keeps running while the terminal is open.
+        simulateLife(dt);
+        mission2!.update(dt, { feet: player.feet });
+      }
       input.endFrame();
     }
 
@@ -311,7 +358,13 @@ async function boot() {
           dispatchEvent(new KeyboardEvent('keydown', { code }));
           setTimeout(() => dispatchEvent(new KeyboardEvent('keyup', { code })), ms);
         },
-        state: () => ({ screen: screen.value, suit: suit.value, stats: player!.stats, pos: player!.feet, grounded: player!.grounded }),
+        next: () => actions.next(),
+        closeTerminal: () => actions.closeTerminal(),
+        holdE: (ms: number) => {
+          dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+          setTimeout(() => dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' })), ms);
+        },
+        state: () => ({ mission: missionNumber.value, terminal: terminalOpen.value, screen: screen.value, suit: suit.value, stats: player!.stats, pos: player!.feet, grounded: player!.grounded }),
         gpu: () => {
           const gl = renderer.getContext();
           const ext = gl.getExtension('WEBGL_debug_renderer_info');

@@ -20,11 +20,23 @@ LINES = {
     'o2_low': "Your suit oxygen is getting low. Head to the oxygen station beside the habitat.",
     'o2_refill': "Suit oxygen refilled. You are good to go.",
     'boundary': "That is the edge of the safe exploration zone. Please head back toward the outpost.",
+    'm2_01': "Mission two. The habitat air is thin and the water tank is low. Head to the life support unit on the east side of the habitat.",
+    'm2_02': "Good. Open the life support terminal and check which systems are offline.",
+    'm2_03': "The oxygen generator is offline. Follow the start-up steps on the terminal to bring it online.",
+    'm2_04': "Oxygen generator running. It splits water into oxygen and hydrogen. But it needs water, and the water recycler is blocked.",
+    'm2_05': "The recycler filter is clogged with dust. Go to the filter housing and hold E to replace it.",
+    'm2_06': "New filter installed. Now start water recovery from the terminal.",
+    'm2_07': "Water recovery online. Every drop gets cleaned and used again. Watch the habitat oxygen rise to a safe level.",
+    'm2_08': "Habitat air is safe to breathe and the water loop is closed. Mission two complete. Life support is go.",
 }
 
 k = Kokoro(MODEL, VOICES)
 os.makedirs(OUT, exist_ok=True)
+import sys
+only = sys.argv[1:]
 for key, text in LINES.items():
+    if only and key not in only:
+        continue
     audio, sr = k.create(text, voice='am_michael', speed=0.95, lang='en-us')
     with tempfile.TemporaryDirectory() as tmp:
         wav = os.path.join(tmp, key + '.wav')
