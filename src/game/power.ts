@@ -15,7 +15,7 @@ export const NIGHT_HOURS = 10;
 export const LOCK_DEG = 4;
 const DEPLOY_SECONDS = 5;
 
-export type LoadId = 'life' | 'heat' | 'comms' | 'flood' | 'lab' | 'rover' | 'hab2';
+export type LoadId = 'life' | 'heat' | 'comms' | 'flood' | 'lab' | 'rover' | 'hab2' | 'gh';
 /** extra: only listed once a later mission switches it on (e.g. the new habitat module). */
 export const LOADS: { id: LoadId; kw: number; essential?: boolean; extra?: boolean }[] = [
   { id: 'life', kw: 3.0, essential: true },
@@ -25,7 +25,13 @@ export const LOADS: { id: LoadId; kw: number; essential?: boolean; extra?: boole
   { id: 'lab', kw: 2.0 },
   { id: 'rover', kw: 3.0 },
   { id: 'hab2', kw: 2.0, essential: true, extra: true },
+  { id: 'gh', kw: 4.0, extra: true },
 ];
+
+/** A load's power right now (the greenhouse depends on its light cycle). */
+export function kwOf(id: LoadId, p = power.value) {
+  return id === 'gh' ? p.ghKW : LOADS.find((l) => l.id === id)!.kw;
+}
 
 export interface ArrayState {
   /** 0 = stowed, 1 = fully deployed. */
@@ -44,7 +50,9 @@ function initial() {
     arrays: STOWED_OFFSET.map((o) => ({ deploy: 0, deploying: false, yaw: sunYaw() + o, tracking: false }) as ArrayState),
     bus: false,
     batteryKWh: 12,
-    loads: { life: true, heat: true, comms: true, flood: true, lab: true, rover: true, hab2: false } as Record<LoadId, boolean>,
+    loads: { life: true, heat: true, comms: true, flood: true, lab: true, rover: true, hab2: false, gh: false } as Record<LoadId, boolean>,
+    /** Greenhouse grow-light power, kW (set by its light cycle). */
+    ghKW: 0,
     /** Fraction of full sunlight reaching the towers (0 while the Sun is below the horizon). */
     sun: 1,
     planLocked: false,
@@ -95,7 +103,7 @@ export function solarKW(p = power.value) {
 }
 
 export function loadKW(p = power.value) {
-  return LOADS.reduce((s, l) => s + (p.loads[l.id] ? l.kw : 0), 0);
+  return LOADS.reduce((s, l) => s + (p.loads[l.id] ? kwOf(l.id, p) : 0), 0);
 }
 
 /** How long the battery would last with no sunlight at the current load. */
@@ -161,6 +169,12 @@ export function confirmPlan() {
 export function setExtraLoad(id: LoadId, on: boolean) {
   const p = power.value;
   if (p.loads[id] !== on) power.value = { ...p, loads: { ...p.loads, [id]: on } };
+}
+
+/** Grow lights on at this power (0 = off). */
+export function setGreenhouseLoad(kw: number) {
+  const p = power.value;
+  power.value = { ...p, ghKW: kw, loads: { ...p.loads, gh: kw > 0 } };
 }
 
 export function setSunlight(sun: number) {

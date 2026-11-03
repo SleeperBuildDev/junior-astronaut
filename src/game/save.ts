@@ -5,7 +5,7 @@ import { knowledge } from './state';
 // cards found so far. Settings are saved separately in engine/settings.ts.
 
 /** Missions that exist in this build. */
-export const MISSION_COUNT = 4;
+export const MISSION_COUNT = 5;
 
 const KEY = 'junior-astronaut.progress';
 

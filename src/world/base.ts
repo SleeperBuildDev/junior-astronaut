@@ -45,6 +45,23 @@ export interface Outpost {
   /** The floodlights' emissive lamp material (dimmed when they are switched off). */
   floodLamp: THREE.MeshStandardMaterial | null;
   hab2: Hab2Rig;
+  greenhouse: GreenhouseRig;
+}
+
+/** The greenhouse on pad G-1, joined to the lab's north hatch (Mission 5). */
+export interface GreenhouseRig {
+  /** Pivots on the south end; scale.z grows 0..1 as it is assembled. */
+  body: THREE.Group;
+  tunnel: THREE.Group;
+  /** Window glass lit by the grow lights. */
+  glass: THREE.MeshStandardMaterial | null;
+  cradle: THREE.Object3D[];
+  /** Harvest hatch meshes on the wall (shown once the greenhouse stands). */
+  hatchParts: THREE.Object3D[];
+  terminalPos: THREE.Vector3;
+  hatchPos: THREE.Vector3;
+  center: THREE.Vector3;
+  collider: ColliderSpec;
 }
 
 /** The inflatable habitat module on build pad H-2 (Mission 4), animated by main.ts. */
@@ -449,7 +466,7 @@ function lifeSupportUnit() {
 // ---------- outpost ----------
 
 /** Detailed models built in Blender (tools/blender/outpost_assets.py). */
-export type OutpostModels = Record<'hab_module' | 'lab_module' | 'node_module' | 'rover' | 'floodlight' | 'power_unit' | 'battery_bank' | 'inflatable_hab', THREE.Object3D>;
+export type OutpostModels = Record<'hab_module' | 'lab_module' | 'node_module' | 'rover' | 'floodlight' | 'power_unit' | 'battery_bank' | 'inflatable_hab' | 'greenhouse', THREE.Object3D>;
 
 function instance(model: THREE.Object3D) {
   const o = model.clone(true);
@@ -805,6 +822,68 @@ export function buildOutpost(models: OutpostModels): Outpost {
   };
   for (const z of [5.6, 10.2]) colliders.push({ kind: 'box', center: new THREE.Vector3(hx, by + 0.31, bz + z), half: new THREE.Vector3(1.7, 0.31, 0.15) });
 
+  // ---------- Pad G-1: greenhouse on the lab's north hatch ----------
+  const gx = bx + 6.4;
+  const gy = by + 2.8; // level with the lab's ports
+  const labPortZ = bz - 11.5;
+  const ghSouthZ = bz - 13.0;
+  const ghLen = 7.6;
+  const ghTunnel = new THREE.Group();
+  ghTunnel.position.set(gx, gy, labPortZ);
+  group.add(ghTunnel);
+  const ghTunnelLen = labPortZ - ghSouthZ;
+  mesh(new THREE.CylinderGeometry(0.85, 0.85, ghTunnelLen, 32, 1, true), mats.shell, ghTunnel, [0, 0, -ghTunnelLen / 2], [Math.PI / 2, 0, 0]);
+  for (let k = 0; k <= 5; k++) mesh(new THREE.TorusGeometry(0.87, 0.035, 6, 32), mats.strapDark, ghTunnel, [0, 0, -(k / 5) * ghTunnelLen]);
+  const ghBody = new THREE.Group();
+  ghBody.position.set(gx, gy, ghSouthZ);
+  group.add(ghBody);
+  const ghModel = instance(models.greenhouse);
+  ghModel.rotation.y = Math.PI / 2; // model axis X -> world -Z (north)
+  ghModel.position.z = -ghLen / 2;
+  ghBody.add(ghModel);
+  let ghGlass: THREE.MeshStandardMaterial | null = null;
+  ghModel.traverse((c) => {
+    const m = c as THREE.Mesh;
+    if (!m.isMesh) return;
+    const list = Array.isArray(m.material) ? m.material : [m.material];
+    list.forEach((mt, i) => {
+      if ((mt as THREE.MeshStandardMaterial).name === 'GrowGlass') {
+        ghGlass = (mt as THREE.MeshStandardMaterial).clone();
+        ghGlass.emissiveIntensity = 0;
+        if (Array.isArray(m.material)) m.material[i] = ghGlass;
+        else m.material = ghGlass;
+      }
+    });
+  });
+  // Cradle under the greenhouse
+  const cradle: THREE.Object3D[] = [];
+  for (const z of [-1.6, -6.0]) {
+    cradle.push(mesh(new THREE.BoxGeometry(3.0, 0.14, 0.3), mats.alu, group, [gx, by + 0.86, ghSouthZ + z]));
+    for (const sx of [-1.3, 1.3]) cradle.push(mesh(new THREE.BoxGeometry(0.16, 0.86, 0.3), mats.alu, group, [gx + sx, by + 0.43, ghSouthZ + z]));
+  }
+  // Harvest hatch on the west wall, and the greenhouse terminal beside it
+  const hatchZ = ghSouthZ - 4.6;
+  const hatch = mesh(new RoundedBoxGeometry(0.12, 0.6, 0.7, 2, 0.03), mats.white, group, [gx - 1.43, by + 1.55, hatchZ]);
+  const hatchParts: THREE.Object3D[] = [
+    hatch,
+    mesh(new THREE.BoxGeometry(0.05, 0.06, 0.4), mats.dark, group, [gx - 1.5, by + 1.4, hatchZ]),
+    mesh(new THREE.BoxGeometry(0.03, 0.62, 0.05), mats.hazard, group, [gx - 1.5, by + 1.55, hatchZ + 0.38]),
+  ];
+  interactables.push({ id: 'gh-hatch', object: hatch, label: () => 'p.ghHatch', minMission: 5 });
+  const ghTermPos = terminalPost(gx - 2.9, ghSouthZ - 1.8, 'gh-terminal', 'p.ghTerminal');
+  interactables[interactables.length - 1].minMission = 5;
+  const greenhouseRig: GreenhouseRig = {
+    body: ghBody,
+    tunnel: ghTunnel,
+    glass: ghGlass,
+    cradle,
+    hatchParts,
+    terminalPos: ghTermPos,
+    hatchPos: new THREE.Vector3(gx - 1.45, by + 1.55, hatchZ),
+    center: new THREE.Vector3(gx, by, ghSouthZ - ghLen / 2),
+    collider: { kind: 'cylinder', center: new THREE.Vector3(gx, gy, ghSouthZ - ghLen / 2), halfHeight: ghLen / 2, radius: 1.95, quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)) },
+  };
+
   let floodLamp: THREE.MeshStandardMaterial | null = null;
   models.floodlight.traverse((c) => {
     const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -817,6 +896,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     arrays,
     floodLamp,
     hab2,
+    greenhouse: greenhouseRig,
     power: {
       pos: new THREE.Vector3(pduX, by, pduZ),
       terminalPos: local(-2.26, 1.45, 0.55),

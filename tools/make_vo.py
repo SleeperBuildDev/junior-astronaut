@@ -64,6 +64,20 @@ LINES = {
     'cs_m4_intro_1': "Day four. Four astronauts, still sleeping in a lander built for a short trip.",
     'cs_m4_intro_2': "Overnight, the rover brought a packed habitat module to the build pad. Folded up, it is smaller than a car.",
     'cs_m4_end': "Inside the new module there is air, warmth, and a bed for everyone. Tonight, the crew sleeps in a home on the Moon.",
+    'm5_01': "Mission five. Every bite of food on this outpost came from Earth, and it will run out. A cargo lander delivered four more building kits overnight. Open the construction terminal and build a greenhouse.",
+    'm5_02': "Greenhouse ordered. It is being assembled on the pad north of the lab. Head over there.",
+    'm5_03': "The greenhouse is up. Open its terminal and set up the hydroponics.",
+    'm5_04': "Water and light are ready. Now choose your crops. Think about what the crew needs. Fresh food soon, and enough calories later.",
+    'm5_05': "Seeds planted. We are speeding up time so you can watch them grow.",
+    'm5_06': "Greenhouse alarm! The nutrient p H has drifted too high, and the leaves are turning yellow. Open the greenhouse terminal and bring the p H back between five point five and six point five.",
+    'm5_07': "p H back in the safe range. The plants can take up their nutrients again. Growing resumes.",
+    'm5_08': "The microgreens are ready. Go to the harvest hatch and hold E to collect them.",
+    'm5_09': "First harvest collected. Mission five complete. The outpost can now grow part of its own food.",
+    'cr_sci_2': "Kofi here. Fresh greens, grown on the Moon! They taste peppery. Amazing.",
+    'cr_med_2': "Doctor Lin. Fresh food means vitamins that packaged food slowly loses. This is good news for everyone's health.",
+    'cs_m5_intro_1': "Day five. Breakfast again comes out of a packet from Earth. The crew has enough for a few weeks, and no more.",
+    'cs_m5_intro_2': "Overnight, a cargo lander dropped four more building kits. Enough to build something new. A greenhouse.",
+    'cs_m5_end': "Under pink purple lights, the first green leaves grow on the Moon. For the first time, the crew is eating food they grew themselves.",
 }
 
 k = Kokoro(MODEL, VOICES)

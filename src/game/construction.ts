@@ -53,9 +53,10 @@ export function blockers(f: Facility, mission: number) {
   return out;
 }
 
-let listener: (id: FacilityId) => void = () => {};
+// Several missions listen (each reacts only to its own facility).
+const listeners: ((id: FacilityId) => void)[] = [];
 export function onBuild(l: (id: FacilityId) => void) {
-  listener = l;
+  listeners.push(l);
 }
 
 export function build(id: FacilityId, mission: number) {
@@ -69,6 +70,6 @@ export function build(id: FacilityId, mission: number) {
   power.value = { ...power.value, batteryKWh: power.value.batteryKWh - f.kwh };
   beep('ok');
   sfx('servo');
-  listener(id);
+  for (const l of listeners) l(id);
   return true;
 }

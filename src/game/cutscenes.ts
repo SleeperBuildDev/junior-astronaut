@@ -376,5 +376,37 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
     },
   ];
 
-  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End };
+  const gh = outpost.greenhouse.center;
+  const m5Intro: Shot[] = [
+    {
+      dur: 7.5,
+      sub: 'cs.m5_intro_1',
+      vo: 'cs_m5_intro_1',
+      // The new habitat at breakfast time, windows lit.
+      cam: orbit(h2, 11, 1.5, 0.3, 1.0, 3),
+    },
+    {
+      dur: 7.5,
+      sub: 'cs.m5_intro_2',
+      vo: 'cs_m5_intro_2',
+      // Over the empty greenhouse pad north of the lab.
+      cam: move(v(gh.x - 10, gh.y + 5, gh.z + 6), v(gh.x - 6, gh.y + 2.5, gh.z - 2), v(gh.x, gh.y + 1, gh.z + 3), v(gh.x, gh.y + 1.2, gh.z)),
+    },
+  ];
+
+  const m5End: Shot[] = [
+    {
+      dur: 11,
+      sub: 'cs.m5_end',
+      vo: 'cs_m5_end',
+      // Along the greenhouse's glowing windows, then up over the outpost.
+      cam: (k, cam) => {
+        const e = ease(k);
+        cam.position.set(gh.x - 5 - e * 10, gh.y + 1.8 + e * 10, gh.z + 4 - e * 2 + e * 16);
+        cam.lookAt(gh.x, gh.y + 2.6 - e * 0.5, gh.z - 1 + e * 8);
+      },
+    },
+  ];
+
+  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End };
 }

@@ -44,7 +44,7 @@ export function unlock(id: string) {
 }
 
 /** The machine screen open on top of the game, if any (the game keeps running behind it). */
-export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab'>(null);
+export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab' | 'gh'>(null);
 
 /**
  * Game seconds per real second. The mission clock normally runs 30x faster than real

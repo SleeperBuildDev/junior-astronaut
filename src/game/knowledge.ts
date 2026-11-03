@@ -244,6 +244,61 @@ export const CARDS: Record<string, Card> = {
     inGame: 'Your crew has four people. NASA’s first Artemis landings plan two astronauts on the surface; a future base could host more.',
     source: 'NASA Astronaut Selection and Training; NASA Artemis program',
   },
+  cea: {
+    id: 'cea',
+    title: 'Farming without soil',
+    icon: '💧',
+    body: [
+      'In hydroponics, plant roots grow in water mixed with exactly the nutrients they need, so no soil is required. Everything is controlled: light, temperature, humidity, water and air. Farmers call this controlled-environment agriculture.',
+      'It suits the Moon well. Plants breathe out water vapour, which machines can catch and reuse, and they take in carbon dioxide and give back oxygen. The University of Arizona built a Prototype Lunar Greenhouse, an inflatable tube that grows food this way.',
+    ],
+    inGame: 'Your greenhouse needs only water, light and the right pH. Real systems also manage air flow, temperature, humidity and many separate nutrients.',
+    source: 'University of Arizona CEAC: Prototype Lunar Greenhouse; NASA Kennedy plant research',
+  },
+  light: {
+    id: 'light',
+    title: 'Light for plants',
+    icon: '💡',
+    body: [
+      'Plants use mostly red and blue light to make their food by photosynthesis. LEDs can give just those colours, wasting little energy, which is why space greenhouses glow pink-purple. NASA’s Veggie garden adds some green light so astronauts can see the plants clearly.',
+      'Light is the biggest energy cost of farming in space. Many crops grow well with about 16 hours of light a day; light that never stops can damage some plants, such as tomatoes.',
+    ],
+    inGame: 'You choose 12, 16 or 24 hours of light. Each choice changes growth speed and power use in a simple way.',
+    source: 'NASA: Vegetable Production System (Veggie); NASA Kennedy LED plant lighting research',
+  },
+  ph: {
+    id: 'ph',
+    title: 'Nutrients and pH',
+    icon: '⚗️',
+    body: [
+      'pH tells how acidic or basic a liquid is: 7 is neutral, lower is acidic and higher is basic. Most hydroponic crops like their nutrient water slightly acidic, around pH 5.5 to 6.5.',
+      'If the pH drifts too high, nutrients such as iron become locked up: they are still in the water, but the roots cannot take them in. Leaves turn yellow even though there is "food" in the tank. Growers check the pH often and add small amounts of acid or base.',
+    ],
+    inGame: 'One pH problem appears on day 3 and is fixed with a few clicks. In a real greenhouse pH, nutrients and salts drift all the time.',
+    source: 'Cornell University CEA: hydroponic nutrient management; NASA plant growth research',
+  },
+  veggie: {
+    id: 'veggie',
+    title: 'Gardens in space',
+    icon: '🥬',
+    body: [
+      'NASA’s Veggie garden has flown on the International Space Station since 2014. In 2015 astronauts ate red romaine lettuce grown there, the first time NASA astronauts ate food grown in space. Later crews grew zinnia flowers, cabbage, radishes and even chile peppers.',
+      'Microgreens are young seedlings eaten after one to three weeks. They grow fast, need little space and are full of flavour and vitamins, which makes them a good first crop for a new base.',
+    ],
+    inGame: 'Time speeds up so 8 days pass in about half a minute. The main crops keep growing in later missions.',
+    source: 'NASA: Veggie and Advanced Plant Habitat experiments on the ISS',
+  },
+  foodsystem: {
+    id: 'foodsystem',
+    title: 'Why grow food on the Moon?',
+    icon: '🍽️',
+    body: [
+      'Each astronaut on the ISS uses about 1.8 kg of food a day, including packaging. For a crew of four that is more than 200 kg every month, all launched from Earth at great cost.',
+      'Packaged food also slowly loses some vitamins over the years. Growing food gives fresh vitamins, recycles water and air, cuts what must be sent from Earth, and astronauts say caring for plants makes them feel better too.',
+    ],
+    inGame: 'Food is counted as "days of food" for the whole crew. The first harvest is small; the greenhouse adds more as the main crops ripen.',
+    source: 'NASA Space Food Systems; NASA Human Research Program: food and nutrition',
+  },
 };
 
 /** The card in the current UI language (Burmese falls back to English per field). */

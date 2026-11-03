@@ -18,6 +18,8 @@ import { Mission1 } from './game/mission1';
 import { Mission2 } from './game/mission2';
 import { Mission3 } from './game/mission3';
 import { Mission4 } from './game/mission4';
+import { Mission5 } from './game/mission5';
+import { greenhouse, greenhouseDone, resetGreenhouse } from './game/greenhouse';
 import { resetConstruction } from './game/construction';
 import { resetCrew } from './game/crew';
 import { habitat, habitatDone, resetHabitat } from './game/habitat';
@@ -29,7 +31,7 @@ import { addCollider, createPhysics } from './player/physics';
 import { Player } from './player/player';
 import { App, type Actions } from './ui/App';
 import { loadTextures } from './world/assets';
-import { buildOutpost, statusMaterials, type Interactable, type OutpostModels } from './world/base';
+import { buildOutpost, statusMaterials, type ColliderSpec, type Interactable, type OutpostModels } from './world/base';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { heightAt, LAYOUT } from './world/heightfield';
@@ -68,6 +70,8 @@ async function boot() {
     spawn: { pos: THREE.Vector3; yaw: number };
     intro?: Shot[];
     ending?: Shot[];
+    /** Mission day the clock starts on (defaults to the mission number). */
+    day?: number;
   }
   const registry = new Map<number, MissionEntry>();
   const current = () => registry.get(missionNumber.value)!;
@@ -201,7 +205,7 @@ async function boot() {
   camera.add(lamp, lamp.target);
 
   const gltf = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  const names = ['hab_module', 'lab_module', 'node_module', 'rover', 'floodlight', 'power_unit', 'battery_bank', 'inflatable_hab'] as const;
+  const names = ['hab_module', 'lab_module', 'node_module', 'rover', 'floodlight', 'power_unit', 'battery_bank', 'inflatable_hab', 'greenhouse'] as const;
   const loaded = await Promise.all(names.map((n) => gltf.loadAsync(`./assets/models/${n}.glb`)));
   const models = Object.fromEntries(names.map((n, i) => [n, loaded[i].scene])) as unknown as OutpostModels;
   const outpost = buildOutpost(models);
@@ -223,15 +227,9 @@ async function boot() {
   loadProgress.value = 0.85;
 
   const { RAPIER, world } = await createPhysics(terrain.physics, [...outpost.colliders, ...rocks.colliders]);
-  // HAB-2's collider changes as it inflates (none before Mission 4, packed, then full size).
-  let hab2Shape: 'none' | 'packed' | 'full' = 'none';
-  let hab2Collider: ReturnType<typeof addCollider> | null = null;
-  function setHab2Collider(shape: typeof hab2Shape) {
-    if (shape === hab2Shape) return;
-    if (hab2Collider) world.removeCollider(hab2Collider, false);
-    hab2Collider = shape === 'none' ? null : addCollider(world, shape === 'packed' ? outpost.hab2.packedCollider : outpost.hab2.fullCollider);
-    hab2Shape = shape;
-  }
+  // HAB-2 (none before Mission 4, packed, then inflated) and the greenhouse (once assembled).
+  const setHab2Collider = dynamicCollider();
+  const setGhCollider = dynamicCollider();
   const startPos = new THREE.Vector3(LAYOUT.lander.x - 3, 0, LAYOUT.lander.z - 6);
   startPos.y = heightAt(startPos.x, startPos.z);
   const startYaw = Math.atan2(-(LAYOUT.base.x - startPos.x), -(LAYOUT.base.z - startPos.z));
@@ -253,6 +251,7 @@ async function boot() {
   registry.set(1, { m: new Mission1(outpost), spawn: { pos: startPos, yaw: startYaw }, intro: scenes.intro, ending: scenes.m1End });
   registry.set(2, { m: new Mission2(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.lifeSupport.pos), intro: scenes.m2Intro, ending: scenes.m2End });
   registry.set(3, { m: new Mission3(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m3Intro, ending: scenes.m3End });
+  registry.set(5, { m: new Mission5(outpost), spawn: spawnAt(LAYOUT.base.x - 7, LAYOUT.base.z + 5.5, outpost.hab2.buildTerminalPos), intro: scenes.m5Intro, ending: scenes.m5End });
   registry.set(4, { m: new Mission4(outpost), spawn: spawnAt(LAYOUT.base.x - 7, LAYOUT.base.z + 5.5, outpost.hab2.buildTerminalPos), intro: scenes.m4Intro, ending: scenes.m4End });
   for (const [n, e] of registry)
     e.m.onFinished = () => {
@@ -279,19 +278,34 @@ async function boot() {
     } else resetLife();
     if (n >= 4) powerOnline();
     else resetPower();
-    // Mission 4 builds HAB-2 from 8 construction kits; later missions start with it finished.
-    if (n >= 5) {
-      habitatDone();
-      resetConstruction(2, ['hab']);
+    // Mission 4 builds HAB-2 from 8 construction kits; a cargo drop brings 4 more for
+    // Mission 5's greenhouse. Later missions start with both finished.
+    if (n >= 5) habitatDone();
+    else resetHabitat();
+    if (n >= 6) {
+      greenhouseDone(18);
+      resetConstruction(1, ['hab', 'greenhouse']);
     } else {
-      resetHabitat();
-      resetConstruction(8);
+      resetGreenhouse(30 - (n - 1));
+      resetConstruction(n === 5 ? 6 : 8, n === 5 ? ['hab'] : []);
     }
     resetCrew(n);
     // The packed module only arrives on its pad for Mission 4.
     const h2 = outpost.hab2;
     h2.shell.visible = n >= 4;
     for (const b of h2.bands) b.visible = n >= 4;
+  }
+
+  /** A collider that changes with the world (modules that inflate or get built). */
+  function dynamicCollider() {
+    let current: ColliderSpec | null = null;
+    let handle: ReturnType<typeof addCollider> | null = null;
+    return (spec: ColliderSpec | null) => {
+      if (spec === current) return;
+      if (handle) world.removeCollider(handle, false);
+      handle = spec ? addCollider(world, spec) : null;
+      current = spec;
+    };
   }
 
   function resetMission() {
@@ -477,7 +491,8 @@ async function boot() {
         ray.setFromCamera(new THREE.Vector2(0, 0), camera);
         const hit = ray.intersectObjects(targets, false)[0];
         focused = hit ? (byObject.get(hit.object) ?? null) : null;
-        if (focused && (focused.minMission ?? 0) > missionNumber.value) focused = null;
+        // Ignore things not in use yet: before their mission, or hidden (raycasts still hit hidden meshes).
+        if (focused && ((focused.minMission ?? 0) > missionNumber.value || !focused.object.visible)) focused = null;
         prompt.value = focused ? labelFor(focused) : null;
 
         simulateSuit(dt);
@@ -501,6 +516,7 @@ async function boot() {
     } else setHum(0);
     syncPower();
     syncHab2();
+    syncGreenhouse();
     updateGuide(t / 1000);
     // Sunlight, ground bounce and reflections all fade when the Sun goes below the horizon.
     const day = sunlight();
@@ -569,7 +585,7 @@ async function boot() {
 
   function advanceClock(dt: number) {
     const minutes = clock.value.minutes + (dt * gameSpeed.value) / 60;
-    clock.value = { day: missionNumber.value + Math.floor((minutes - 6 * 60 - 10) / 1440), minutes };
+    clock.value = { day: (current().day ?? missionNumber.value) + Math.floor((minutes - 6 * 60 - 10) / 1440), minutes };
   }
 
   // ---------- HAB-2 visuals: tunnel, inflating shell, windows ----------
@@ -586,7 +602,20 @@ async function boot() {
     for (const b of rig.bands) b.visible = rig.shell.visible && h.inflate === 0 && !h.inflating;
     rig.valveLight.material = h.inflate >= 1 ? statusMaterials.green : h.inflating ? statusMaterials.cyan : statusMaterials.amber;
     if (rig.glass) rig.glass.emissiveIntensity = h.crewIn ? 1.4 : h.heaters ? 0.35 : 0;
-    setHab2Collider(!rig.shell.visible ? 'none' : h.inflate >= 1 ? 'full' : 'packed');
+    setHab2Collider(!rig.shell.visible ? null : h.inflate >= 1 ? rig.fullCollider : rig.packedCollider);
+  }
+
+  // ---------- greenhouse visuals: assembly and grow lights ----------
+  function syncGreenhouse() {
+    const g = greenhouse.value;
+    const rig = outpost.greenhouse;
+    rig.body.visible = g.built;
+    rig.body.scale.z = Math.max(0.04, towerEase(g.assemble));
+    rig.tunnel.visible = g.assemble >= 1;
+    for (const h of rig.hatchParts) h.visible = g.assemble >= 1;
+    // Pink-purple: the red and blue LEDs plants use most.
+    if (rig.glass) rig.glass.emissiveIntensity = g.light && g.tank ? 2.6 : 0;
+    setGhCollider(g.assemble >= 1 ? rig.collider : null);
   }
 
   // ---------- power system visuals (solar towers, battery gauges, main switch, floodlights) ----------
@@ -649,6 +678,7 @@ async function boot() {
         },
         power: () => ({ ...power.value, sunYaw: sunYaw() }),
         habitat: () => habitat.value,
+        greenhouse: () => greenhouse.value,
         speed: () => gameSpeed.value,
         progress: () => progress.value,
         cutscene: () => screen.value === 'cutscene',

@@ -54,6 +54,7 @@ def mats():
         'tire': material('Tire', (0.42, 0.42, 0.40), 0.9, 0.55),
         'fabric': material('Fabric', (0.86, 0.85, 0.81), 0.0, 0.92),
         'strap': material('Strap', (0.50, 0.50, 0.47), 0.0, 0.8),
+        'growglass': material('GrowGlass', (0.05, 0.02, 0.05), 0.1, 0.08, emit=(1.0, 0.32, 0.85), strength=2.0),
     }
 
 # ---------------------------------------------------------------- primitives
@@ -381,8 +382,47 @@ def inflatable_hab(M, length=8.0, radius=2.4):
         torus(radius + 0.005, 0.008, (x, 0, 0), M['seam'], rot=(0, math.pi / 2, 0), major_seg=72, minor_seg=4)
 
 
+def greenhouse(M, radius=1.9, body=6.2):
+    """Greenhouse module (after the Prototype Lunar Greenhouse): a short rigid module with
+    long window bands lit pink-purple by red+blue LED grow lights, a nutrient tank and
+    radiators. Axis along X, centred on the origin, no legs (the game adds a cradle)."""
+    for i in range(4):
+        x = -body / 2 + body / 8 + i * body / 4
+        cyl(radius, body / 4 - 0.05, (x, 0, 0), M['shell'], rot=(0, math.pi / 2, 0), verts=64, bevel=0.02)
+        cyl(radius - 0.03, 0.07, (x + body / 8, 0, 0), M['seam'], rot=(0, math.pi / 2, 0), verts=64)
+    for s in (-1, 1):
+        sphere(radius, (s * body / 2, 0, 0), M['shell'], scale=(0.34, 1, 1), segs=48)
+        torus(radius - 0.02, 0.07, (s * (body / 2 - 0.02), 0, 0), M['alu'], rot=(0, math.pi / 2, 0), major_seg=64)
+        torus(0.9, 0.08, (s * (body / 2 + radius * 0.32), 0, 0), M['dark'], rot=(0, math.pi / 2, 0), major_seg=48)
+        cyl(0.86, 0.06, (s * (body / 2 + radius * 0.33), 0, 0), M['panel'], rot=(0, math.pi / 2, 0), verts=40)
+    # long grow-light window bands on both sides, with frames and shutters
+    for side in (-1, 1):
+        y = side * (radius - 0.06)
+        box((body * 0.86, 0.14, 0.55), (0, y, 0.35), M['growglass'], bevel=0.02)
+        box((body * 0.88, 0.1, 0.07), (0, y + side * 0.06, 0.66), M['dark'], bevel=0.01)
+        box((body * 0.88, 0.1, 0.07), (0, y + side * 0.06, 0.04), M['dark'], bevel=0.01)
+        for k in range(7):
+            x = -body * 0.43 + k * body * 0.86 / 6
+            box((0.06, 0.12, 0.62), (x, y + side * 0.05, 0.35), M['dark'])
+    # roof: radiator fins and a pipe bundle
+    top = radius
+    box((body * 0.7, 0.8, 0.06), (0, 0, top + 0.05), M['dark'], bevel=0.01)
+    for i in range(12):
+        box((0.05, 1.4, 0.7), (-body * 0.3 + i * body * 0.6 / 11, 0, top + 0.5), M['radiator'], bevel=0.005)
+    for yy, mk, r in ((-0.3, 'blue', 0.05), (0.3, 'alu', 0.045)):
+        tube([(-body * 0.42, yy, top + 0.15), (body * 0.42, yy, top + 0.15)], r, M[mk])
+    # nutrient water tank strapped to the north end
+    cyl(0.45, 1.3, (body / 2 + 0.2, radius * 0.75, -radius * 0.55), M['blue'], verts=32, rot=(0, math.pi / 2, 0))
+    for x in (body / 2 - 0.2, body / 2 + 0.6):
+        torus(0.46, 0.03, (x, radius * 0.75, -radius * 0.55), M['alu'], rot=(0, math.pi / 2, 0), major_seg=32)
+    # MLI belly blanket
+    for i in range(6):
+        x = -body * 0.42 + i * body * 0.168
+        torus(radius + 0.02, 0.012, (x, 0, 0), M['dark'], rot=(0, math.pi / 2, 0), major_seg=64, minor_seg=4)
+
+
 ASSETS = {
-    'inflatable_hab': inflatable_hab,    'battery_bank': battery_bank,
+    'greenhouse': greenhouse,    'inflatable_hab': inflatable_hab,    'battery_bank': battery_bank,
     'hab_module': lambda M: habitat_module(M, 9.0, 2.1, lab=False),
     'lab_module': lambda M: habitat_module(M, 8.0, 1.9, lab=True),
     'node_module': node_module,

@@ -34,7 +34,7 @@ await measure('no rocks', () => { window.__qa.shadows(true); window.__qa.show('r
 await measure('no terrain', () => { window.__qa.show('rocks', true); window.__qa.show('terrain', false); });
 await measure('low', () => { window.__qa.show('terrain', true); window.__qa.quality('low'); });
 await measure('high', () => window.__qa.quality('high'));
-await page.evaluate(() => window.__qa.quality('medium'));
+await measure('medium again', () => window.__qa.quality('medium')); // first reading includes warm-up
 await page.screenshot({ path: 'qa/last.png' });
 console.log('errors:', errors.length ? errors.slice(0, 5) : 'none');
 await browser.close();

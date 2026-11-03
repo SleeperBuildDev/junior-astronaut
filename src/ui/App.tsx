@@ -4,10 +4,11 @@ import { setVolume } from '../audio/audio';
 import { settings, updateSettings, type Quality } from '../engine/settings';
 import { cardFor, CARDS } from '../game/knowledge';
 import { life, O2_STEPS, o2Step, SAFE_O2, startWater, type SysState } from '../game/lifesupport';
-import { aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState } from '../game/power';
+import { kwOf, aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState } from '../game/power';
 import { MISSION_COUNT, progress } from '../game/save';
 import { blockers, build, built, FACILITIES, kits, type FacilityId } from '../game/construction';
 import { CREW, crew } from '../game/crew';
+import { adjustPh, chooseLight, CROPS, fillTank, greenhouse, growth, microGrowth, LIGHT_CYCLES, MICRO_DAYS, PH_OK, plant, TANK_LITRES, toggleTray, TRAYS, trayProblem, type CropId } from '../game/greenhouse';
 import { choosePressure, COMFORT, connectLines, fillWaterWalls, habitat, heatersOn, installBeds, nudgeTemp, PRESSURES, WATER_WALL_LITRES } from '../game/habitat';
 import {
   cardPopup,
@@ -256,6 +257,18 @@ function BasePanel() {
         <span>⚡ {t('hud.load')}</span>
         <b>{loadKW(p).toFixed(1)} kW</b>
       </div>
+      {missionNumber.value >= 5 ? (
+        <>
+          <div class="base-row">
+            <span>🍽 {t('hud.food')}</span>
+            <b>{t('hud.days', { n: num(Math.floor(greenhouse.value.foodDays)) })}</b>
+          </div>
+          <div class="base-row">
+            <span>💧 {t('hud.water')}</span>
+            <b>{num(Math.round(life.value.waterL))} L</b>
+          </div>
+        </>
+      ) : null}
       {!p.bus ? <small class="base-note">{t('hud.busOff')}</small> : p.sun < 0.05 ? <small class="base-note">{t('hud.dark')}</small> : null}
     </div>
   );
@@ -403,7 +416,7 @@ function PowerTerminal({ actions }: { actions: Actions }) {
                 <span class="sw">{p.loads[l.id] ? t('pw.on') : t('pw.off')}</span>
                 <span class="nm">{t('load.' + l.id)}</span>
                 {l.essential ? <em>{t('pw.essential')}</em> : null}
-                <b>{l.kw.toFixed(1)} kW</b>
+                <b>{kwOf(l.id, p).toFixed(1)} kW</b>
               </button>
             ))}
           </div>
@@ -718,6 +731,175 @@ function HabTerminal({ actions }: { actions: Actions }) {
             ))}
           </ol>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const CROP_COLOR: Record<CropId | 'micro', string> = { lettuce: '#7ed957', radish: '#c2f06b', tomato: '#e5533d', wheat: '#e8c35a', potato: '#8fbf5a', soy: '#5fae4e', micro: '#9be86b' };
+
+/** Side view of a hydroponic tray: plants sized by how far they have grown. */
+function Tray({ crop, g, label }: { crop: CropId | 'micro'; g: number; label: string }) {
+  const col = CROP_COLOR[crop];
+  const plants = [14, 34, 54, 74, 94];
+  return (
+    <div class="tray">
+      <svg viewBox="0 0 108 60" aria-hidden="true">
+        <rect x="2" y="48" width="104" height="9" rx="2" fill="#3a5f88" />
+        <rect x="2" y="46" width="104" height="3" fill="#2a3a4c" />
+        {g > 0
+          ? plants.map((x) => {
+              const hgt = 4 + g * 34;
+              const leaf = 2 + g * 7;
+              return (
+                <g>
+                  <line x1={x} y1="46" x2={x} y2={46 - hgt} stroke="#4f8a3a" stroke-width="1.6" />
+                  <ellipse cx={x - leaf * 0.6} cy={46 - hgt * 0.6} rx={leaf} ry={leaf * 0.45} fill={col} opacity="0.9" />
+                  <ellipse cx={x + leaf * 0.6} cy={46 - hgt * 0.8} rx={leaf} ry={leaf * 0.45} fill={col} />
+                  {crop === 'tomato' && g > 0.6 ? <circle cx={x} cy={46 - hgt * 0.5} r="2.6" fill="#e5533d" /> : null}
+                </g>
+              );
+            })
+          : null}
+      </svg>
+      <span>{label}</span>
+      <div class="bar">
+        <i style={{ width: `${Math.round(g * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function GreenhouseTerminal({ actions }: { actions: Actions }) {
+  const g = greenhouse.value;
+  const problem = trayProblem();
+  const phOk = g.ph >= PH_OK.min && g.ph <= PH_OK.max;
+  const crop = (id: CropId) => CROPS.find((c) => c.id === id)!;
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal gh-term">
+        <div class="modal-head">
+          <h2>{t('gh.title')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <div class="gauges four">
+          <div class="gauge">
+            <span>💧 {t('gh.tank')}</span>
+            <b class={g.tank ? 'good' : 'low'}>{g.tank ? `${num(TANK_LITRES)} L` : t('gh.empty')}</b>
+          </div>
+          <div class="gauge">
+            <span>💡 {t('gh.lights')}</span>
+            <b class={g.light ? 'good' : 'low'}>{g.light ? `${num(g.light)} h` : '—'}</b>
+            <small>{g.light ? `${power.value.ghKW.toFixed(1)} kW` : t('gh.notSet')}</small>
+          </div>
+          <div class="gauge">
+            <span>⚗️ pH</span>
+            <b class={phOk ? 'good' : 'low'}>{g.ph.toFixed(1)}</b>
+            <small>{t('gh.phRange', { a: num(PH_OK.min), b: num(PH_OK.max) })}</small>
+          </div>
+          <div class="gauge">
+            <span>🍽 {t('gh.food')}</span>
+            <b>{t('hud.days', { n: num(Math.floor(g.foodDays)) })}</b>
+            <small>{t('gh.foodNote')}</small>
+          </div>
+        </div>
+
+        {g.planted ? (
+          <p class="gh-summary">
+            ✓ {t('gh.summary', { l: num(TANK_LITRES), h: num(g.light) })} {g.trays.map((id) => crop(id).icon + ' ' + t('crop.' + id)).join(' · ')} · 🌿 {t('crop.micro')}
+          </p>
+        ) : (
+          <>
+          <div class={`sys ${g.tank && g.light ? 'online' : 'starting'}`}>
+            <div class="sys-head">
+              <span class="led" />
+              <b>1. {t('gh.setupTitle')}</b>
+            </div>
+            <div class="gh-setup">
+              <button class="btn small" data-action="tank" disabled={g.tank} onClick={fillTank}>
+                {g.tank ? '✓' : '○'} {t('gh.fill', { l: num(TANK_LITRES) })}
+              </button>
+              <small>{t('gh.fillWhy')}</small>
+              <b class="step-label">{t('gh.lightAsk')}</b>
+              <div class="choice">
+                {LIGHT_CYCLES.map((c) => (
+                  <button class={`btn small ${g.light === c.h ? 'on' : ''}`} data-light={c.h} disabled={g.planted} onClick={() => chooseLight(c.h)}>
+                    <b>
+                      {num(c.h)} h · {c.kw.toFixed(1)} kW
+                    </b>
+                    <small>{t('gh.light.' + c.h)}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div class={`sys ${g.planted ? 'online' : g.tank && g.light ? 'starting' : 'offline'}`}>
+            <div class="sys-head">
+              <span class="led" />
+              <b>2. {t('gh.plantTitle')}</b>
+              <span class="sys-state">
+                {num(g.trays.length)}/{num(TRAYS)}
+              </span>
+            </div>
+            <div class="crops">
+              {CROPS.map((c) => (
+                <button class={`crop ${g.trays.includes(c.id) ? 'on' : ''}`} data-crop={c.id} disabled={g.planted || !g.tank || !g.light} onClick={() => toggleTray(c.id)}>
+                  <span class="crop-icon">{c.icon}</span>
+                  <b>{t('crop.' + c.id)}</b>
+                  <small>
+                    {t('gh.daysToHarvest', { n: num(c.days) })} · {t('role.' + c.role)}
+                  </small>
+                </button>
+              ))}
+            </div>
+            <small>{t('gh.microNote', { n: num(MICRO_DAYS) })}</small>
+            {!g.planted ? (
+              <>
+                {g.tank && g.light && problem ? <p class="fault">{t(problem)}</p> : null}
+                <button class="btn primary small confirm" data-action="plant" disabled={!g.tank || !g.light || !!problem} onClick={plant}>
+                  {t('gh.plant')}
+                </button>
+              </>
+            ) : null}
+          </div>
+          </>
+        )}
+
+        {g.planted ? (
+          <div class={`sys ${g.phAlarm ? 'damaged' : 'online'}`}>
+            <div class="sys-head">
+              <span class="led" />
+              <b>3. {t('gh.growTitle')}</b>
+              <span class="sys-state">{t('gh.day', { n: num(Math.min(Math.floor(g.day), 99)) })}</span>
+            </div>
+            <div class="trays">
+              {g.trays.map((id) => (
+                <Tray crop={id} g={growth(crop(id).days)} label={`${crop(id).icon} ${t('crop.' + id)}`} />
+              ))}
+              <Tray crop="micro" g={microGrowth()} label={`🌿 ${t('crop.micro')}`} />
+            </div>
+            {g.phAlarm ? (
+              <div class="ph-alarm">
+                <p class="fault">{t('gh.phAlarm', { ph: g.ph.toFixed(1) })}</p>
+                <div class="thermo">
+                  <button class="btn small" data-action="ph-down" onClick={() => adjustPh(-0.3)}>
+                    {t('gh.phDown')}
+                  </button>
+                  <b class={phOk ? 'good' : 'low'}>pH {g.ph.toFixed(1)}</b>
+                  <button class="btn small" data-action="ph-up" onClick={() => adjustPh(0.3)}>
+                    {t('gh.phUp')}
+                  </button>
+                  <small>{t('gh.phWhy')}</small>
+                </div>
+              </div>
+            ) : microGrowth() >= 1 ? (
+              <p class="bt-done">✓ {t('gh.ready')}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1166,6 +1348,7 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'playing' && terminal.value === 'array' && <ArrayPanel actions={actions} />}
       {sc === 'playing' && terminal.value === 'build' && <BuildTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'hab' && <HabTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'gh' && <GreenhouseTerminal actions={actions} />}
       {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>
