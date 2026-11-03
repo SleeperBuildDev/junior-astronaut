@@ -67,6 +67,11 @@ export class Player {
     return this.position.add(new THREE.Vector3(0, -(HALF_HEIGHT + RADIUS), 0));
   }
 
+  /** Off while sitting in the rover, so the two don't collide. */
+  setEnabled(on: boolean) {
+    this.collider.setEnabled(on);
+  }
+
   teleport(p: THREE.Vector3, yaw?: number) {
     this.body.setTranslation({ x: p.x, y: p.y + HALF_HEIGHT + RADIUS + 0.05, z: p.z }, true);
     this.body.setNextKinematicTranslation({ x: p.x, y: p.y + HALF_HEIGHT + RADIUS + 0.05, z: p.z });

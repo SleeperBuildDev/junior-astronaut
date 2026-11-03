@@ -8,6 +8,7 @@ import { kwOf, aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, c
 import { MISSION_COUNT, progress } from '../game/save';
 import { blockers, build, built, FACILITIES, kits, type FacilityId } from '../game/construction';
 import { CREW, crew, sendToShelter } from '../game/crew';
+import { analyze, answer, CORRECT, science, SITE_NAMES } from '../game/science';
 import { BERMS, bermsDone, rad, SHIELDED_MSV_DAY, STORM_HOURS, STORM_OUTSIDE_MSV_H, STORM_SHELTER_MSV_H, SURFACE_MSV_DAY, SURVEY, type SurveyId } from '../game/radiation';
 import { adjustPh, chooseLight, CROPS, fillTank, greenhouse, growth, microGrowth, LIGHT_CYCLES, MICRO_DAYS, PH_OK, plant, TANK_LITRES, toggleTray, TRAYS, trayProblem, type CropId } from '../game/greenhouse';
 import { choosePressure, COMFORT, connectLines, fillWaterWalls, habitat, heatersOn, installBeds, nudgeTemp, PRESSURES, WATER_WALL_LITRES } from '../game/habitat';
@@ -15,6 +16,7 @@ import {
   cardPopup,
   cinema,
   clock,
+  drive,
   comms,
   fps,
   gameSpeed,
@@ -238,6 +240,7 @@ function Hud() {
       ) : null}
       {warning.value ? <div class="warning">⚠ {t(warning.value)}</div> : null}
       {missionNumber.value === 6 ? <StormBanner /> : null}
+      {drive.value.driving ? <RoverDash /> : null}
       {fps.value ? <div class="fps">{fps.value} fps</div> : null}
     </div>
   );
@@ -285,6 +288,42 @@ function StormBanner() {
   return (
     <div class={`storm-banner ${r.weather}`}>
       ☢ {r.weather === 'warning' ? t('rad.banner.warning', { t: mmss(r.countdown) }) : t('rad.banner.storm')}
+    </div>
+  );
+}
+
+function RoverDash() {
+  const d = drive.value;
+  return (
+    <div class="rover-dash">
+      <div class="rd-speed">
+        <b>{num(Math.round(Math.abs(d.speed) * 3.6))}</b>
+        <small>km/h{d.speed < -0.05 ? ` · ${t('rd.reverse')}` : ''}</small>
+      </div>
+      <div class="rd-bat">
+        <span>🔋 {t('rd.battery')}</span>
+        <div class="bar">
+          <i style={{ width: `${d.battery}%` }} />
+        </div>
+        <b>{num(Math.round(d.battery))}%</b>
+        {d.battery < 10 ? <em class="rd-low">{t(d.battery <= 0 ? 'rd.flat' : 'rd.low')}</em> : null}
+      </div>
+      <div class="rd-keys">
+        <span>
+          <kbd>W</kbd>
+          <kbd>S</kbd> {t('rd.drive')}
+        </span>
+        <span>
+          <kbd>A</kbd>
+          <kbd>D</kbd> {t('rd.steer')}
+        </span>
+        <span>
+          <kbd>Space</kbd> {t('rd.brake')}
+        </span>
+        <span>
+          <kbd>E</kbd> {t('rd.exit')}
+        </span>
+      </div>
     </div>
   );
 }
@@ -1045,6 +1084,85 @@ function ShelterScreen({ actions }: { actions: Actions }) {
   );
 }
 
+function NotesTerminal({ actions }: { actions: Actions }) {
+  const sc = science.value;
+  const i = sc.notes;
+  const name = SITE_NAMES[i];
+  const state = sc.sites[i];
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal notes">
+        <div class="modal-head">
+          <h2>
+            📓 {t('fn.title')} · {t('fn.' + name + '.site')}
+          </h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <p class="fn-scan">🔎 {t('fn.' + name + '.scan')}</p>
+        <p>
+          <b>{t('fn.' + name + '.q')}</b>
+        </p>
+        <div class="fn-options">
+          {[0, 1, 2].map((o) => (
+            <button
+              class={`btn small fn-opt ${state !== 'new' && o === CORRECT[i] ? 'right' : ''} ${sc.wrong === o ? 'wrong' : ''}`}
+              data-answer={o}
+              disabled={state !== 'new'}
+              onClick={() => answer(i, o)}
+            >
+              {t('fn.' + name + '.' + o)}
+            </button>
+          ))}
+        </div>
+        {sc.wrong !== null && state === 'new' ? <p class="fault">💭 {t('fn.' + name + '.' + sc.wrong + '.hint')}</p> : null}
+        {state !== 'new' ? (
+          <>
+            <p class="bt-done">✓ {t('fn.' + name + '.ok')}</p>
+            {state === 'noted' ? <p class="fn-next">{t('fn.next')}</p> : null}
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LabTerminal({ actions }: { actions: Actions }) {
+  const sc = science.value;
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal lab-term">
+        <div class="modal-head">
+          <h2>{t('lab.title')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <p>{t('lab.intro')}</p>
+        <div class="lab-samples">
+          {SITE_NAMES.map((n, i) => (
+            <div class="lab-sample">
+              <b>
+                {['🏔️', '🧱', '🧊'][i]} {t('lab.' + n + '.title')}
+              </b>
+              <p>{t('lab.' + n + '.text')}</p>
+            </div>
+          ))}
+        </div>
+        <p class="ingame">{t('lab.oxygen')}</p>
+        {sc.analyzed ? (
+          <p class="bt-done">✓ {t('lab.sent')}</p>
+        ) : (
+          <button class="btn primary small confirm" data-action="send" onClick={analyze}>
+            📡 {t('lab.send')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CrewPanel() {
   const c = crew.value;
   const h = habitat.value;
@@ -1501,6 +1619,8 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'playing' && terminal.value === 'gh' && <GreenhouseTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'rad' && <RadTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'shelter' && <ShelterScreen actions={actions} />}
+      {sc === 'playing' && terminal.value === 'notes' && <NotesTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'lab' && <LabTerminal actions={actions} />}
       {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>

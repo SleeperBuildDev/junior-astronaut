@@ -92,6 +92,18 @@ LINES = {
     'cs_m6_intro_1': "Day fourteen. The outpost has power, air, water, food, and a home for four.",
     'cs_m6_intro_2': "But every second, invisible particles from the Sun, and from distant exploding stars, pass straight through its walls.",
     'cs_m6_end': "The storm has passed. Under regolith and water, the crew rode it out safely. The outpost is ready for whatever the Sun sends next.",
+    'm7_01': "Mission seven. With the outpost safe, it is time for science. Take the rover out to the three flagged sites, study each one, and bring back samples.",
+    'm7_02': "Rover systems are go. W and S to drive, A and D to steer, Space to brake. Mind the boulders.",
+    'm7_03': "Highland rock sample stored. That pale rock could be over four billion years old.",
+    'm7_04': "Boulder sample stored. That rock was blasted out of the big crater nearby.",
+    'm7_05': "Shadow soil sample stored, and sealed cold. If there is ice in it, it is a real treasure.",
+    'm7_06': "All three samples collected. Drive back and deliver them to the sample port on the lab.",
+    'm7_07': "Samples received in the lab. Open the analysis and see what you found.",
+    'm7_08': "Results received on Earth. Mission seven complete. Outstanding field work, explorer.",
+    'cr_sci_3': "Kofi here. Ancient crust, impact rock, and water ice, in one trip! Scientists on Earth will be studying this for years.",
+    'cs_m7_intro_1': "Day sixteen. The rover is charged, and the crew can finally do what they came for. Science.",
+    'cs_m7_intro_2': "Out there are rocks older than almost anything on Earth, and a crater so deep and cold, that the Sun has never touched its floor.",
+    'cs_m7_end': "Three samples, three stories. The Moon's first crust, the scars of ancient impacts, and ice that could one day become water, air, and fuel.",
 }
 
 k = Kokoro(MODEL, VOICES)

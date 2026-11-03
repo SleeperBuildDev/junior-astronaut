@@ -440,5 +440,44 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
     },
   ];
 
-  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End, m6Intro, m6End };
+  const rv = outpost.rover;
+  const siteC = outpost.science.sites[2].pos;
+  const m7Intro: Shot[] = [
+    {
+      dur: 7.5,
+      sub: 'cs.m7_intro_1',
+      vo: 'cs_m7_intro_1',
+      // Around the parked rover, charged and ready.
+      cam: (k, cam) => orbit(rv.position, 7, 1.2, 0.6, 1.6, 1)(k, cam),
+    },
+    {
+      dur: 8.5,
+      sub: 'cs.m7_intro_2',
+      vo: 'cs_m7_intro_2',
+      // Out over the plain toward the deep crater, its floor lost in shadow.
+      cam: move(
+        v(siteC.x - 60, siteC.y + 22, siteC.z + 60),
+        v(siteC.x - 18, siteC.y + 10, siteC.z + 14),
+        v(siteC.x - 20, siteC.y - 8, siteC.z - 10),
+        v(siteC.x - 60, siteC.y - 14, siteC.z - 4),
+      ),
+    },
+  ];
+
+  const lab = outpost.science.labPortPos;
+  const m7End: Shot[] = [
+    {
+      dur: 11,
+      sub: 'cs.m7_end',
+      vo: 'cs_m7_end',
+      // Rise from the lab's sample port to a view across the plain to the far crater.
+      cam: (k, cam) => {
+        const e = ease(k);
+        cam.position.set(lab.x - 5 - e * 14, lab.y + 1 + e * 14, lab.z + 4 + e * 18);
+        cam.lookAt(new THREE.Vector3(lab.x, lab.y + 1, lab.z).lerp(new THREE.Vector3(siteC.x, siteC.y, siteC.z), e * 0.6));
+      },
+    },
+  ];
+
+  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End, m6Intro, m6End, m7Intro, m7End };
 }

@@ -20,6 +20,9 @@ import { Mission3 } from './game/mission3';
 import { Mission4 } from './game/mission4';
 import { Mission5 } from './game/mission5';
 import { Mission6 } from './game/mission6';
+import { Mission7 } from './game/mission7';
+import { resetScience, science } from './game/science';
+import { Rover } from './player/rover';
 import { crew } from './game/crew';
 import { BERMS, rad, radiationDone, resetRadiation } from './game/radiation';
 import { greenhouse, greenhouseDone, resetGreenhouse } from './game/greenhouse';
@@ -28,7 +31,7 @@ import { resetCrew } from './game/crew';
 import { habitat, habitatDone, resetHabitat } from './game/habitat';
 import { BATTERY_KWH, power, powerOnline, resetPower, sunYaw } from './game/power';
 import { missionDone, progress } from './game/save';
-import { cardPopup, clock, comms, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
+import { cardPopup, clock, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { addCollider, createPhysics } from './player/physics';
 import { Player } from './player/player';
@@ -229,7 +232,11 @@ async function boot() {
   scene.add(rocks.group);
   loadProgress.value = 0.85;
 
-  const { RAPIER, world } = await createPhysics(terrain.physics, [...outpost.colliders, ...rocks.colliders]);
+  const { RAPIER, world, terrainHandle } = await createPhysics(terrain.physics, [...outpost.colliders, ...rocks.colliders]);
+  // The rover: parked by the habitat until Mission 7, then drivable.
+  const rover = new Rover(RAPIER, world, outpost.rover, terrainHandle);
+  const roverPark = { pos: outpost.rover.position.clone(), yaw: outpost.rover.rotation.y };
+  rover.onBump = (k) => thud(2 + k * 4);
   // HAB-2 (none before Mission 4, packed, then inflated) and the greenhouse (once assembled).
   const setHab2Collider = dynamicCollider();
   const setGhCollider = dynamicCollider();
@@ -255,6 +262,7 @@ async function boot() {
   registry.set(1, { m: new Mission1(outpost), spawn: { pos: startPos, yaw: startYaw }, intro: scenes.intro, ending: scenes.m1End });
   registry.set(2, { m: new Mission2(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.lifeSupport.pos), intro: scenes.m2Intro, ending: scenes.m2End });
   registry.set(3, { m: new Mission3(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m3Intro, ending: scenes.m3End });
+  registry.set(7, { m: new Mission7(outpost), spawn: spawnAt(LAYOUT.base.x - 5, LAYOUT.base.z + 9, outpost.rover.position), intro: scenes.m7Intro, ending: scenes.m7End, day: 16 });
   registry.set(6, { m: new Mission6(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.radiation.monitorPos), intro: scenes.m6Intro, ending: scenes.m6End, day: 14 });
   registry.set(5, { m: new Mission5(outpost), spawn: spawnAt(LAYOUT.base.x - 7, LAYOUT.base.z + 5.5, outpost.hab2.buildTerminalPos), intro: scenes.m5Intro, ending: scenes.m5End });
   registry.set(4, { m: new Mission4(outpost), spawn: spawnAt(LAYOUT.base.x - 7, LAYOUT.base.z + 5.5, outpost.hab2.buildTerminalPos), intro: scenes.m4Intro, ending: scenes.m4End });
@@ -299,6 +307,10 @@ async function boot() {
     resetCrew(n);
     if (n >= 7) radiationDone();
     else resetRadiation();
+    resetScience();
+    leaveRover(false);
+    rover.place(roverPark.pos, roverPark.yaw);
+    rover.battery = 100;
     // The packed module only arrives on its pad for Mission 4.
     const h2 = outpost.hab2;
     h2.shell.visible = n >= 4;
@@ -333,6 +345,37 @@ async function boot() {
     lowO2Warned = false;
   }
 
+  /** Where the camera looks (works on foot and from the rover seat). */
+  const viewDir = () => new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+
+  // ---------- rover: getting in and out ----------
+  function enterRover() {
+    rover.driving = true;
+    rover.lookYaw = 0;
+    rover.lookPitch = -0.08;
+    player!.setEnabled(false);
+    prompt.value = null;
+    sfx('clunk');
+    drive.value = { driving: true, speed: 0, battery: rover.battery };
+  }
+  function leaveRover(sound = true) {
+    if (!rover.driving) return;
+    const out = rover.exitPoint();
+    // Boxed in (by a wall or rocks): say so, unless the mission is resetting anyway.
+    if (!out && sound) {
+      beep('warn');
+      flash('w.noRoomExit');
+      return;
+    }
+    rover.driving = false;
+    rover.speed = 0;
+    player!.setEnabled(true);
+    player!.teleport(out ?? rover.obj.position.clone().add(new THREE.Vector3(0, 2.2, 0)), rover.yaw - Math.PI / 2);
+    player!.pitch = 0;
+    if (sound) sfx('clunk');
+    drive.value = { driving: false, speed: 0, battery: rover.battery };
+  }
+
   // ---------- interaction ----------
   const ray = new THREE.Raycaster();
   ray.far = 3.4;
@@ -353,6 +396,11 @@ async function boot() {
   }
 
   function use(it: Interactable) {
+    if (it.id === 'rover') {
+      enterRover();
+      current().m.interact('rover');
+      return;
+    }
     if (it.id === 'o2') {
       if (suit.value.o2 > 98) return;
       suit.value = { ...suit.value, o2: 100 };
@@ -383,8 +431,8 @@ async function boot() {
 
   // ---------- guidance: where to go next ----------
   const ctx = (): MissionCtx => ({
-    feet: player!.feet,
-    look: player!.forward(),
+    feet: rover.driving ? rover.obj.position.clone() : player!.feet,
+    look: viewDir(),
     eye: camera.position,
     distance: player!.stats.distance,
     jumps: player!.stats.jumps,
@@ -411,7 +459,7 @@ async function boot() {
       beam.visible = false;
       return;
     }
-    const feet = player.feet;
+    const feet = rover.driving ? rover.obj.position : player.feet;
     const dist = target.sky ? null : Math.hypot(target.pos.x - feet.x, target.pos.z - feet.z);
     // Beam: only for ground targets that are not right in front of you.
     beam.visible = !target.sky && dist !== null && dist > 9;
@@ -461,7 +509,32 @@ async function boot() {
     const playing = inMission && !terminal.value;
 
     if (screen.value === 'cutscene') cut.update(dt, camera);
-    else if (player) {
+    else if (player && rover.driving) {
+      // Driving: the rover moves and steps the physics; E gets out. Paused or a panel: it waits.
+      if (inMission) rover.update(dt, input, playing);
+      else input.takeLook();
+      rover.applyCamera(camera);
+      if (playing) {
+        if (input.pressed('KeyE')) leaveRover();
+        if (input.pressed('KeyC') && missionNumber.value >= 4) {
+          panel.value = 'crew';
+          input.unlock();
+        }
+        if (input.pressed('KeyK')) {
+          panel.value = 'knowledge';
+          input.unlock();
+        }
+        simulateSuit(dt);
+      }
+      prompt.value = null;
+      focused = null;
+      if (inMission && started) {
+        current().m.update(dt, ctx());
+        advanceClock(dt);
+      }
+      input.endFrame();
+      if (rover.driving) drive.value = { driving: true, speed: rover.speed, battery: rover.battery };
+    } else if (player) {
       player.update(dt, playing);
       if (playing) {
         const m = current().m;
@@ -523,6 +596,8 @@ async function boot() {
       const near = (p: THREE.Vector3, r: number) => Math.max(0, 1 - Math.hypot(f.x - p.x, f.z - p.z) / r);
       const lsRunning = missionNumber.value === 1 || life.value.o2gen === 'online' ? 1 : 0.4;
       const pduRunning = power.value.bus ? 0.8 : 0.15;
+      if (rover.driving) setHum(0.25 + (Math.abs(rover.speed) / 5.5) * 0.6);
+      else
       setHum(Math.max(near(outpost.lifeSupport.pos, 14) * lsRunning, near(outpost.habitatPos, 12) * 0.5, near(outpost.power.pos, 10) * pduRunning));
     } else setHum(0);
     syncPower();
@@ -549,7 +624,7 @@ async function boot() {
     hudAcc += dt;
     if (hudAcc > 0.1) {
       hudAcc = 0;
-      const f = player ? player.forward() : new THREE.Vector3(0, 0, -1);
+      const f = viewDir();
       // North is -Z, east is +X.
       heading.value = (THREE.MathUtils.radToDeg(Math.atan2(f.x, -f.z)) + 360) % 360;
     }
@@ -565,7 +640,7 @@ async function boot() {
 
   function simulateSuit(dt: number) {
     const s = { ...suit.value };
-    const exertion = player!.sprinting ? 1.8 : player!.moving ? 1.15 : 0.8;
+    const exertion = rover.driving ? 0.8 : player!.sprinting ? 1.8 : player!.moving ? 1.15 : 0.8;
     s.o2 = Math.max(0, s.o2 - O2_PER_SEC * exertion * dt);
     s.power = Math.max(0, s.power - (POWER_PER_SEC + (s.light ? LAMP_POWER_PER_SEC : 0)) * dt);
     if (s.power === 0) s.light = false;
@@ -592,7 +667,7 @@ async function boot() {
       lowO2Warned = false;
     }
     suit.value = s;
-    setExertion(player!.sprinting ? 1 : s.o2 < 20 ? 0.8 : 0.2);
+    setExertion(player!.sprinting && !rover.driving ? 1 : s.o2 < 20 ? 0.8 : 0.2);
   }
 
   function advanceClock(dt: number) {
@@ -719,6 +794,14 @@ async function boot() {
         habitat: () => habitat.value,
         greenhouse: () => greenhouse.value,
         rad: () => rad.value,
+        science: () => science.value,
+        /** Put the rover somewhere (and keep driving if in it). */
+        roverTo: (x: number, z: number, yaw = 0) => rover.place(new THREE.Vector3(x, 0, z), yaw),
+        drive: (ms: number) => {
+          dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+          setTimeout(() => dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' })), ms);
+        },
+        rover: () => ({ driving: rover.driving, speed: rover.speed, x: rover.obj.position.x, z: rover.obj.position.z, battery: rover.battery }),
         crew: () => crew.value,
         speed: () => gameSpeed.value,
         progress: () => progress.value,

@@ -354,6 +354,61 @@ export const CARDS: Record<string, Card> = {
     inGame: 'The whole crew shelters in HAB-2, behind the water walls you added in Mission 4 and the regolith you just piled up.',
     source: 'NASA: Orion radiation protection and storm shelter',
   },
+  rover: {
+    id: 'rover',
+    title: 'Driving on the Moon',
+    icon: '🚙',
+    body: [
+      'The Apollo 15, 16 and 17 crews drove an electric Lunar Roving Vehicle. It folded up to fit on the lander, ran on batteries, and had wire-mesh wheels because rubber tyres would not cope with the cold and the sharp dust. The Apollo 17 crew drove about 36 km in total.',
+      'In low gravity a rover bounces easily and takes longer to stop, so drivers go slowly around rocks and craters. NASA is now developing a new Lunar Terrain Vehicle for the Artemis missions.',
+    ],
+    inGame: 'Your rover tops out at about 20 km/h; the Apollo rover managed about 13 km/h. Real rovers also need careful navigation, as there are no roads or GPS on the Moon.',
+    source: 'NASA: Apollo Lunar Roving Vehicle; NASA Lunar Terrain Vehicle',
+  },
+  highlands: {
+    id: 'highlands',
+    title: 'The Moon’s first crust',
+    icon: '🏔️',
+    body: [
+      'The bright parts of the Moon are the highlands. Their rock, anorthosite, is made mostly of a light mineral called plagioclase feldspar.',
+      'Scientists think the young Moon was covered by an ocean of molten rock. As it cooled, light crystals floated to the top and formed the first crust, more than 4 billion years ago. Apollo 15 brought back a piece nicknamed the "Genesis Rock".',
+    ],
+    inGame: 'You identify the rock by eye. Real geologists also use magnifiers, spectrometers and careful lab dating.',
+    source: 'NASA Lunar Sample Compendium; NASA Apollo 15 mission',
+  },
+  breccia: {
+    id: 'breccia',
+    title: 'Rocks made by impacts',
+    icon: '💥',
+    body: [
+      'A breccia is a rock made of broken pieces of older rocks, cemented together. On the Moon, most breccias were made when meteorites struck at enormous speed, smashing and melting the ground.',
+      'Big impacts throw boulders far across the surface. By dating breccias, scientists learn when large impacts happened, which also tells us about the early history of Earth.',
+    ],
+    inGame: 'The boulder at site B is placed near a large crater so its story makes sense; it was not formed by that exact crater in any real record.',
+    source: 'NASA Lunar Sample Compendium; NASA Astromaterials',
+  },
+  psr: {
+    id: 'psr',
+    title: 'Cold traps and ice',
+    icon: '🧊',
+    body: [
+      'Near the poles, the Sun stays so low that the floors of some deep craters never see sunlight. These permanently shadowed regions are among the coldest places known in the Solar System, below −240 °C.',
+      'In 2009 NASA’s LCROSS mission crashed a rocket stage into one such crater and found water in the plume: about 5% of the soil by mass. Ice may have arrived with comets and asteroids over billions of years.',
+    ],
+    inGame: 'You sample at the edge of the shadow. Going down into a real shadowed crater would need special heaters and lights.',
+    source: 'NASA LCROSS mission (2009); LRO Diviner measurements',
+  },
+  isru: {
+    id: 'isru',
+    title: 'Using what the Moon gives',
+    icon: '⛏️',
+    body: [
+      'In-situ resource utilisation (ISRU) means using local materials instead of bringing everything from Earth. On the Moon, regolith can become building material and radiation shielding.',
+      'Almost half of regolith’s weight is oxygen, locked in minerals; heating it with the right chemicals can release oxygen to breathe. Ice from shadowed craters can give water, and splitting water gives oxygen and hydrogen, which are rocket fuel.',
+    ],
+    inGame: 'The outpost does not mine yet. Turning ISRU experiments into real factories is one of the big goals of Moon exploration.',
+    source: 'NASA: In-Situ Resource Utilization; NASA MOXIE and lunar ISRU studies',
+  },
 };
 
 /** The card in the current UI language (Burmese falls back to English per field). */

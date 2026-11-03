@@ -11,6 +11,12 @@ export const LAYOUT = {
     { x: -6, z: -64 },
   ],
   playRadius: 360,
+  /** Mission 7 science sites: a crater rim (highland rock), a big ejecta boulder, a shadowed crater. */
+  sites: [
+    { x: -111, z: -22 },
+    { x: 82, z: 46 },
+    { x: 143, z: -196 },
+  ],
 } as const;
 
 export function mulberry32(seed: number) {
@@ -107,6 +113,13 @@ const KEEP_CLEAR = [
   // One big landmark crater on the way from the lander to the far ridge.
   addCrater({ x: 120, z: 150, r: 70, depth: 15, rim: 3.4 });
 })();
+
+/** Craters whose centre lies between rMin and rMax metres from (x, z) (used to pick science sites). */
+export function cratersNear(x: number, z: number, rMin: number, rMax: number) {
+  const seen = new Set<Crater>();
+  for (const list of craterGrid.values()) for (const c of list) if (Math.hypot(c.x - x, c.z - z) >= rMin && Math.hypot(c.x - x, c.z - z) <= rMax) seen.add(c);
+  return [...seen];
+}
 
 function craterHeight(x: number, z: number) {
   const list = craterGrid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL));

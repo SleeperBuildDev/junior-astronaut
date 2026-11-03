@@ -47,6 +47,11 @@ export interface Outpost {
   hab2: Hab2Rig;
   greenhouse: GreenhouseRig;
   radiation: RadiationRig;
+  rover: THREE.Object3D;
+  science: {
+    sites: { marker: THREE.Group; light: THREE.Mesh; pos: THREE.Vector3 }[];
+    labPortPos: THREE.Vector3;
+  };
 }
 
 /** Mission 6: radiation monitor, wall-survey tripods and regolith berms around HAB-2. */
@@ -658,7 +663,12 @@ export function buildOutpost(models: OutpostModels): Outpost {
   // Parked surface rover, the power unit and floodlight masts around the work area
   const rover = instance(models.rover);
   place(rover, bx - 9, bz + 12, -0.5, by);
-  colliders.push({ kind: 'box', center: new THREE.Vector3(bx - 9, by + 0.9, bz + 12), half: new THREE.Vector3(1.9, 0.9, 1.25), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.5, 0)) });
+  // (The rover's collider is a moving body made in main.ts, because it can be driven.)
+  let roverMesh: THREE.Object3D = rover;
+  rover.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh && roverMesh === rover) roverMesh = c;
+  });
+  interactables.push({ id: 'rover', object: roverMesh, label: () => 'p.rover', minMission: 7 });
 
   const floodSpots: { pos: THREE.Vector3; target: THREE.Vector3 }[] = [];
   for (const [x, z] of [[-14, -8], [10, 14], [20, -22]]) {
@@ -961,6 +971,29 @@ export function buildOutpost(models: OutpostModels): Outpost {
     },
   };
 
+  // ---------- Mission 7: science site markers and the lab's sample port ----------
+  const sites = LAYOUT.sites.map((st, i) => {
+    const g = new THREE.Group();
+    const y = heightAt(st.x, st.z);
+    g.position.set(st.x, y, st.z);
+    group.add(g);
+    // A tall orange flag you can see from the rover, and a sampling stake with a light.
+    strut(new THREE.Vector3(0.8, 0, 0.6), new THREE.Vector3(0.8, 3.2, 0.6), 0.025, mats.alu, g);
+    mesh(new THREE.PlaneGeometry(0.7, 0.45), new THREE.MeshStandardMaterial({ color: 0xff7a1a, emissive: 0x401800, side: THREE.DoubleSide, roughness: 0.7 }), g, [1.15, 2.95, 0.6]);
+    strut(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.9, 0), 0.03, mats.alu, g);
+    const box = mesh(new RoundedBoxGeometry(0.42, 0.3, 0.3, 2, 0.03), mats.white, g, [0, 1.0, 0]);
+    mesh(new THREE.BoxGeometry(0.43, 0.06, 0.31), mats.hazard, g, [0, 1.1, 0]);
+    const light = mesh(new THREE.SphereGeometry(0.05, 10, 8), mats.amber, g, [0, 1.22, 0]);
+    interactables.push({ id: 'site-' + i, object: box, label: () => 'p.site', minMission: 7 });
+    return { marker: g, light, pos: new THREE.Vector3(st.x, y + 1.0, st.z) };
+  });
+  const samplePortX = bx + 6.4 - 1.3;
+  const samplePortZ = bz - 6.9;
+  const port = mesh(new RoundedBoxGeometry(0.16, 0.6, 0.7, 2, 0.03), mats.white, group, [samplePortX, by + 1.45, samplePortZ]);
+  mesh(new THREE.PlaneGeometry(0.5, 0.3), mats.cyan, group, [samplePortX - 0.085, by + 1.5, samplePortZ], [0, -Math.PI / 2, 0]).castShadow = false;
+  mesh(new THREE.BoxGeometry(0.04, 0.08, 0.72), mats.hazard, group, [samplePortX - 0.09, by + 1.2, samplePortZ]);
+  interactables.push({ id: 'lab-port', object: port, label: () => 'p.labPort', minMission: 7 });
+
   let floodLamp: THREE.MeshStandardMaterial | null = null;
   models.floodlight.traverse((c) => {
     const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -975,6 +1008,8 @@ export function buildOutpost(models: OutpostModels): Outpost {
     hab2,
     greenhouse: greenhouseRig,
     radiation: radiationRig,
+    rover,
+    science: { sites, labPortPos: new THREE.Vector3(samplePortX - 0.1, by + 1.45, samplePortZ) },
     power: {
       pos: new THREE.Vector3(pduX, by, pduZ),
       terminalPos: local(-2.26, 1.45, 0.55),

@@ -27,6 +27,7 @@ export async function buildRocks(count: number) {
     { ...LAYOUT.lander, r: 16 },
     ...LAYOUT.sensors.map((s) => ({ ...s, r: 4 })),
     { x: 34, z: -39, r: 22 },
+    ...LAYOUT.sites.map((s) => ({ ...s, r: 9 })),
   ];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -83,5 +84,52 @@ export async function buildRocks(count: number) {
       group.add(inst);
     }
   });
+  // Mission 7 site B: a big boulder thrown out by the impact that made the landmark crater.
+  const bs = LAYOUT.sites[1];
+  const bSrc = pickLod(sources[1].scene, 1);
+  const bGeo = bSrc.geometry.clone();
+  bGeo.computeBoundingBox();
+  const bb = bGeo.boundingBox!;
+  const bSize = new THREE.Vector3();
+  bb.getSize(bSize);
+  const bNorm = 4.4 / Math.max(bSize.x, bSize.y, bSize.z);
+  bGeo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+  bGeo.scale(bNorm, bNorm * 0.8, bNorm);
+  const bMat = (bSrc.material as THREE.MeshStandardMaterial).clone();
+  bMat.color.setRGB(0.7, 0.69, 0.67);
+  const boulder = new THREE.Mesh(bGeo, bMat);
+  const bx = bs.x + 3.4;
+  const bz = bs.z - 1.2;
+  boulder.position.set(bx, heightAt(bx, bz) - 0.4, bz);
+  boulder.rotation.y = 0.7;
+  boulder.castShadow = boulder.receiveShadow = true;
+  boulder.name = 'boulder';
+  group.add(boulder);
+  colliders.push({ kind: 'ball', center: new THREE.Vector3(bx, boulder.position.y + 1.2, bz), radius: 2.1 });
+  // Site A: a scatter of pale highland rocks on the crater rim.
+  const aSrc = pickLod(sources[2].scene, 2);
+  const aGeo = aSrc.geometry.clone();
+  aGeo.computeBoundingBox();
+  const ab = aGeo.boundingBox!;
+  const aSize = new THREE.Vector3();
+  ab.getSize(aSize);
+  aGeo.translate(-(ab.min.x + ab.max.x) / 2, -ab.min.y, -(ab.min.z + ab.max.z) / 2);
+  aGeo.scale(1 / aSize.x, 1 / aSize.x, 1 / aSize.x);
+  const aMat = (aSrc.material as THREE.MeshStandardMaterial).clone();
+  aMat.color.setRGB(1.25, 1.24, 1.2); // anorthosite: much paler than the soil around it
+  const as = LAYOUT.sites[0];
+  const pale = new THREE.InstancedMesh(aGeo, aMat, 9);
+  for (let i = 0; i < 9; i++) {
+    const a = i * 0.7 + 0.3;
+    const r = 1.3 + (i % 3) * 0.9;
+    const x = as.x + Math.cos(a) * r - 1.2;
+    const z = as.z + Math.sin(a) * r;
+    const sc = 0.25 + (i % 4) * 0.12;
+    m.compose(new THREE.Vector3(x, heightAt(x, z) - sc * 0.15, z), q.setFromEuler(new THREE.Euler(0.3, a * 2, 0.2)), s.set(sc, sc * 0.7, sc));
+    pale.setMatrixAt(i, m);
+  }
+  pale.castShadow = pale.receiveShadow = true;
+  pale.computeBoundingSphere();
+  group.add(pale);
   return { group, colliders };
 }

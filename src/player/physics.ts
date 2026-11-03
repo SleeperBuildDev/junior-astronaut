@@ -7,9 +7,9 @@ export async function createPhysics(terrain: { vertices: Float32Array; indices: 
   await RAPIER.init();
   // Gravity is applied by the character controller itself; no dynamic bodies yet.
   const world = new RAPIER.World({ x: 0, y: -1.62, z: 0 });
-  world.createCollider(RAPIER.ColliderDesc.trimesh(terrain.vertices, terrain.indices));
+  const terrainCollider = world.createCollider(RAPIER.ColliderDesc.trimesh(terrain.vertices, terrain.indices));
   for (const c of colliders) addCollider(world, c);
-  return { RAPIER, world };
+  return { RAPIER, world, terrainHandle: terrainCollider.handle };
 }
 
 /** Adds a static collider (also used for things that change shape, like the inflatable module). */
