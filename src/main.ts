@@ -7,6 +7,7 @@ import '@fontsource/noto-sans-myanmar/400.css';
 import '@fontsource/noto-sans-myanmar/700.css';
 import * as THREE from 'three';
 import { render, h } from 'preact';
+import { effect } from '@preact/signals';
 import { beep, playVoice, setExertion, startAudio, thud } from './audio/audio';
 import { createRenderer, Pipeline, PRESETS } from './engine/renderer';
 import { settings, updateSettings, type Quality } from './engine/settings';
@@ -105,6 +106,15 @@ async function boot() {
     },
   };
   render(h(App, { actions }), document.getElementById('ui-root')!);
+
+  // Free the mouse whenever a mission ends, so the player can click the
+  // "Mission complete" buttons (the cursor stays hidden while it is captured).
+  effect(() => {
+    if (screen.value === 'complete') {
+      input.enabled = false;
+      input.unlock();
+    }
+  });
 
   input.onLockChange = (locked) => {
     if (!locked && screen.value === 'playing' && !terminalOpen.value && !QA) screen.value = 'paused';
