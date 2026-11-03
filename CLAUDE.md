@@ -77,7 +77,8 @@ Done and tested (git history has one commit per milestone):
 **Version 1.0.0: all nine missions are built and the production build is tested** (`npm run build`,
 `npm run preview` on port 4173, `node qa/prod.mjs` opens every mission on the built site). `README.md`
 explains play/build/hosting; `.github/workflows/pages.yml` deploys `dist/` to GitHub Pages once the repo
-is pushed (no remote yet: ask the owner before publishing). Test screenshots (`qa/*.png`) are not committed.
+is pushed. **Live at https://sleeperbuilddev.github.io/junior-astronaut/** (repo
+https://github.com/SleeperBuildDev/junior-astronaut, branch `main`; every push redeploys). Test screenshots (`qa/*.png`) are not committed.
 
 ## Run, test, build
 
@@ -264,6 +265,7 @@ data sources (see the Credits screen).
 
 - He tests in Chrome at http://localhost:5173 and sends screenshots of problems; fix root causes.
 - Send preview screenshots during big changes.
-- Commit after each milestone (`git` is set up locally with his name/email; no remote yet).
+- Commit after each milestone (`git` is set up locally with his name/email). `origin` is GitHub; pushing `main`
+  publishes the live site, so push only when the owner wants an update online.
 - Ask before anything costly or outside the project (paid services, deploying/publishing).
 - Hosting is not set up yet; when asked, a GitHub Pages deploy of `dist/` is the planned free option.
