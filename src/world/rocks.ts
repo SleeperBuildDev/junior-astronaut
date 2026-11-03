@@ -18,6 +18,22 @@ function pickLod(scene: THREE.Object3D, rank: number) {
 export async function buildRocks(count: number) {
   const loader = new GLTFLoader();
   const sources = await Promise.all(ROCKS.map((r) => loader.loadAsync(`./assets/polyhaven/models/${r}/${r}_1k.gltf`)));
+  // Rocks 03/05/07 come with one detailed mesh only, so simplified copies (made with
+  // gltfpack) are used for the scattered boulders and pebbles. Rock 01 has its own LODs.
+  const firstMesh = (o: THREE.Object3D) => {
+    let found: THREE.Mesh | null = null;
+    o.traverse((c) => {
+      if (!found && (c as THREE.Mesh).isMesh) found = c as THREE.Mesh;
+    });
+    return found as THREE.Mesh | null;
+  };
+  const simple = await Promise.all(
+    ROCKS.map(async (r) =>
+      r === 'moon_rock_01'
+        ? null
+        : Promise.all(['big', 'small'].map((k) => loader.loadAsync(`./assets/polyhaven/models/${r}/${r}_${k}.glb`).then((g) => firstMesh(g.scene)!))),
+    ),
+  );
   const group = new THREE.Group();
   group.name = 'rocks';
   const colliders: ColliderSpec[] = [];
@@ -42,7 +58,9 @@ export async function buildRocks(count: number) {
   ];
   sources.forEach((gltf, k) => {
     for (const layer of layers) {
-      const src = pickLod(gltf.scene, layer.lod);
+      const detailed = pickLod(gltf.scene, 0);
+      const lite = simple[k];
+      const src = lite ? lite[layer.big ? 0 : 1] : pickLod(gltf.scene, layer.lod);
       const geo = src.geometry.clone();
       geo.computeBoundingBox();
       const box = geo.boundingBox!;
@@ -54,7 +72,7 @@ export async function buildRocks(count: number) {
       const norm = 1 / Math.max(size.x, size.y, size.z);
       geo.translate(-center.x, -box.min.y, -center.z);
       geo.scale(norm, norm, norm);
-      const mat = (src.material as THREE.MeshStandardMaterial).clone();
+      const mat = (detailed.material as THREE.MeshStandardMaterial).clone();
       mat.color.setRGB(0.78, 0.77, 0.75);
 
       const perType = Math.floor(layer.count / sources.length);

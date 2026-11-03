@@ -196,6 +196,10 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 - GitHub's anonymous API gets rate-limited; download assets via direct URLs.
 - `curl` (Windows Schannel) fails TLS on some NASA hosts (svs.gsfc.nasa.gov) — use the Browser pane
   or Python's urllib; never disable certificate checks.
+- **Measure smoothness with `node qa/frames.mjs [mission]`** (vsync on: 16.7 ms = 60 fps). `perf.mjs` runs with
+  vsync off, so its fps counts CPU submissions and over-reports badly (it said 100+ while the GPU really did 30).
+  Rocks 03/05/07 ship only one ~8k-triangle mesh: the scatter uses gltfpack-simplified `_big.glb`/`_small.glb`
+  (made with `-si 0.15|0.05 -sa -noq -tr`). Medium = 60 fps after that fix (2.2M triangles).
 - Performance target: the dev PC has only an **Intel UHD 770 integrated GPU**. Current: Medium ≈ 95–110 fps,
   High ≈ 70+, Low ≈ 200+ at 1600×900 (after Mission 3: Medium ≈ 100 fps, 386 draw calls). Keep draw calls/lights modest; floodlight SpotLights are skipped on Low.
 - The other chat's Vite dev server sometimes serves a stale module after many quick edits (a
