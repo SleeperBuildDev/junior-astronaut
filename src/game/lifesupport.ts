@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { beep } from '../audio/audio';
+import { beep, sfx } from '../audio/audio';
 
 // A simplified Environmental Control and Life Support System (ECLSS), modelled on the
 // ISS: an oxygen generator splits water by electrolysis, a water recovery system
@@ -48,7 +48,10 @@ export function o2Step(i: number) {
   const next = l.o2Step + 1;
   beep(next === O2_STEPS.length ? 'ok' : 'select');
   life.value = { ...l, o2Step: next, o2gen: next === O2_STEPS.length ? 'online' : 'starting' };
-  if (next === O2_STEPS.length) listener('o2-online');
+  if (next === O2_STEPS.length) {
+    sfx('powerup');
+    listener('o2-online');
+  }
 }
 
 export function replaceFilter() {
@@ -64,6 +67,7 @@ export function startWater() {
   }
   beep('ok');
   life.value = { ...l, water: 'online' };
+  sfx('powerup');
   listener('water-online');
 }
 

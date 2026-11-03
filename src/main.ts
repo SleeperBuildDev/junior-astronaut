@@ -8,13 +8,13 @@ import '@fontsource/noto-sans-myanmar/700.css';
 import * as THREE from 'three';
 import { render, h } from 'preact';
 import { effect } from '@preact/signals';
-import { beep, playVoice, setExertion, startAudio, thud } from './audio/audio';
+import { audioState, beep, playVoice, setExertion, setHum, sfx, startAudio, thud, type Sfx } from './audio/audio';
 import { createRenderer, Pipeline, PRESETS } from './engine/renderer';
 import { settings, updateSettings, type Quality } from './engine/settings';
-import { resetLife, simulateLife, terminalOpen } from './game/lifesupport';
+import { life, resetLife, simulateLife, terminalOpen } from './game/lifesupport';
 import { Mission1 } from './game/mission1';
 import { FILTER_HOLD_SECONDS, Mission2 } from './game/mission2';
-import { clock, comms, fps, heading, holdProgress, knowledge, loadProgress, missionNumber, panel, prompt, pushComm, screen, suit, warning, waypoint } from './game/state';
+import { cardPopup, clock, comms, fps, heading, holdProgress, knowledge, loadProgress, missionNumber, panel, prompt, pushComm, screen, suit, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { createPhysics } from './player/physics';
 import { Player } from './player/player';
@@ -113,8 +113,21 @@ async function boot() {
     if (screen.value === 'complete') {
       input.enabled = false;
       input.unlock();
+      sfx('complete');
     }
   });
+  effect(() => {
+    if (cardPopup.value) sfx('unlock');
+  });
+  effect(() => {
+    if (terminalOpen.value) sfx('terminal');
+  });
+  effect(() => {
+    if (panel.value) sfx('panel');
+  });
+  // Menu sounds: a tick on hover, a click on press.
+  document.addEventListener('click', (e) => (e.target as HTMLElement).closest?.('button') && sfx('click'));
+  document.addEventListener('mouseover', (e) => (e.target as HTMLElement).closest?.('button:not(:disabled)') && sfx('hover'));
 
   input.onLockChange = (locked) => {
     if (!locked && screen.value === 'playing' && !terminalOpen.value && !QA) screen.value = 'paused';
@@ -178,6 +191,8 @@ async function boot() {
   player = new Player(RAPIER, world, input, camera, startPos);
   player.yaw = startYaw;
   player.onLand = (fall) => thud(fall);
+  player.onStep = (k) => sfx('step', k);
+  player.onJump = () => sfx('jump');
   player.onBoundary = () => {
     pushComm('mc', 'c.boundary');
     void playVoice('boundary');
@@ -231,7 +246,7 @@ async function boot() {
       if (suit.value.o2 > 98) return;
       suit.value = { ...suit.value, o2: 100 };
       lowO2Warned = false;
-      beep('ok');
+      sfx('refill');
       pushComm('mc', 'c.o2refill');
       void playVoice('o2_refill');
       return;
@@ -369,12 +384,16 @@ async function boot() {
         if (focused && holdId && focused.id === holdId) {
           // Hold E to do a repair: keep looking at the part while holding the key.
           input.pressed('KeyE');
+          const before = holdTime;
           holdTime = input.isDown('KeyE') ? holdTime + dt : 0;
+          // A ratchet sound every 0.35 s while the wrench turns.
+          if (holdTime > 0 && Math.floor(holdTime / 0.35) !== Math.floor(before / 0.35)) sfx('ratchet');
           holdProgress.value = holdTime > 0 ? Math.min(1, holdTime / FILTER_HOLD_SECONDS) : null;
           if (holdTime >= FILTER_HOLD_SECONDS) {
             holdTime = 0;
             holdProgress.value = null;
             mission2!.holdComplete(holdId);
+            sfx('clunk');
           }
         } else {
           holdTime = 0;
@@ -383,7 +402,7 @@ async function boot() {
         }
         if (input.pressed('KeyF')) {
           suit.value = { ...suit.value, light: !suit.value.light };
-          beep('select');
+          sfx('lamp');
         }
         if (input.pressed('KeyK')) {
           panel.value = 'knowledge';
@@ -407,6 +426,13 @@ async function boot() {
     }
 
     lamp.intensity = suit.value.light ? 30 : 0;
+    // Running machines hum through the ground and the suit when you stand close.
+    if (player && screen.value === 'playing') {
+      const f = player.feet;
+      const near = (p: THREE.Vector3, r: number) => Math.max(0, 1 - Math.hypot(f.x - p.x, f.z - p.z) / r);
+      const lsRunning = missionNumber.value === 1 || life.value.o2gen === 'online' ? 1 : 0.4;
+      setHum(Math.max(near(outpost.lifeSupport.pos, 14) * lsRunning, near(outpost.habitatPos, 12) * 0.5));
+    } else setHum(0);
     updateGuide(t / 1000);
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, 300);
     sun.target.position.copy(camera.position);
@@ -445,11 +471,14 @@ async function boot() {
     s.tempOut = -48 + Math.sin(performance.now() / 9000) * 3;
     if (s.o2 === 0) {
       s.health = Math.max(0, s.health - 4 * dt);
-      if (warningTimer <= 0) flash('w.o2depleted', 1);
+      if (warningTimer <= 0) {
+        flash('w.o2depleted', 1);
+        sfx('alarm');
+      }
     } else if (s.o2 < 15 && warningTimer <= 0) flash('w.o2critical', 1);
     if (s.o2 < 30 && !lowO2Warned) {
       lowO2Warned = true;
-      beep('warn');
+      sfx('alarm');
       pushComm('mc', 'c.o2low');
       void playVoice('o2_low');
     }
@@ -512,6 +541,8 @@ async function boot() {
           sun.castShadow = on;
         },
         quality: (q: Quality) => actions.setQuality(q),
+        sfx: (n: Sfx) => sfx(n),
+        audio: () => audioState(),
       },
     });
   }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { beep, playVoice } from '../audio/audio';
+import { beep, playVoice, sfx } from '../audio/audio';
 import { statusMaterials } from '../world/base';
 import { EARTH_DIR } from '../world/sky';
 import { mission, pushComm, screen, unlock, type Step } from './state';
@@ -91,6 +91,7 @@ export class Mission1 {
       const i = Number(id.split('-')[1]);
       if (this.scanned.has(i)) return 'w.alreadyScanned';
       this.scanned.add(i);
+      sfx('scan');
       this.sensorLights[i].material = statusMaterials.green;
       unlock(SENSOR_CARDS[i]);
       const scan = this.steps.find((s) => s.id === 'scan')!;
@@ -105,6 +106,7 @@ export class Mission1 {
     }
     if (id === 'airlock') {
       if (this.current?.id !== 'airlock') return 'w.scanFirst';
+      sfx('airlock');
       this.complete('airlock');
       return null;
     }

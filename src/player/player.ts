@@ -34,6 +34,9 @@ export class Player {
   private landVel = 0;
   stats = { distance: 0, jumps: 0 };
   onLand: (fall: number) => void = () => {};
+  /** Called once per footfall while walking, with 0..1 strength. */
+  onStep: (strength: number) => void = () => {};
+  onJump: () => void = () => {};
   onBoundary: () => void = () => {};
   private boundaryCooldown = 0;
 
@@ -122,6 +125,7 @@ export class Player {
       this.vel.y = JUMP_SPEED;
       this.grounded = false;
       this.stats.jumps++;
+      this.onJump();
     }
     this.vel.y -= MOON_G * h;
 
@@ -170,7 +174,12 @@ export class Player {
 
   private updateCamera(dt: number) {
     const speed = Math.hypot(this.vel.x, this.vel.z);
-    if (this.grounded && speed > 0.2) this.bobPhase += dt * (2.2 + speed * 0.9);
+    if (this.grounded && speed > 0.2) {
+      const before = Math.floor(this.bobPhase / Math.PI);
+      this.bobPhase += dt * (2.2 + speed * 0.9);
+      // One footfall each time the head bob passes its lowest point.
+      if (Math.floor(this.bobPhase / Math.PI) !== before) this.onStep(Math.min(1, 0.5 + speed / 8));
+    }
     const bobAmt = this.grounded ? Math.min(speed / SPRINT, 1) : 0;
     // A gentle spring for the landing dip: the suit's weight settling.
     this.landVel += (-this.landDip * 40 - this.landVel * 9) * dt;
