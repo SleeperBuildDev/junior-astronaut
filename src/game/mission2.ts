@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { beep, playVoice } from '../audio/audio';
-import { statusMaterials } from '../world/base';
-import { life, onLifeEvent, replaceFilter, resetLife, SAFE_O2, terminalOpen } from './lifesupport';
-import { mission, pushComm, screen, unlock, type Step } from './state';
+import { statusMaterials, type Outpost } from '../world/base';
+import { life, onLifeEvent, replaceFilter, resetLife, SAFE_O2, simulateLife } from './lifesupport';
+import type { GameMission, GuideTarget, MissionCtx } from './mission';
+import { mission, pushComm, screen, terminal, unlock, type Step } from './state';
 
 const CAPCOM = 'mc';
 export const MISSION2_TITLE = 'm2.title';
@@ -29,16 +30,26 @@ const LINES: Record<string, { vo: string; text: string }> = {
 
 export const FILTER_HOLD_SECONDS = 2.5;
 
-export class Mission2 {
+export class Mission2 implements GameMission {
   readonly number = 2;
+  readonly holdSeconds = FILTER_HOLD_SECONDS;
   /** Called when the mission's last step is done (main.ts plays the ending). */
   onFinished: () => void = () => (screen.value = 'complete');
   private steps: Step[] = STEPS.map((s) => ({ ...s }));
 
-  constructor(
-    private unitPos: THREE.Vector3,
-    private lights: { o2: THREE.Mesh; water: THREE.Mesh; co2: THREE.Mesh },
-  ) {
+  private unitPos: THREE.Vector3;
+  private lights: { o2: THREE.Mesh; water: THREE.Mesh; co2: THREE.Mesh };
+  private marks: { unit: THREE.Vector3; terminal: THREE.Vector3; filter: THREE.Vector3 };
+
+  constructor(outpost: Outpost) {
+    this.unitPos = outpost.lifeSupport.pos;
+    this.lights = outpost.lifeSupport.lights;
+    const ls = this.unitPos;
+    this.marks = {
+      unit: ls.clone().add(new THREE.Vector3(0, 1.6, 0)),
+      terminal: ls.clone().add(new THREE.Vector3(-0.2, 1.45, 1.5)),
+      filter: ls.clone().add(new THREE.Vector3(1.05, 0.95, 0.97)),
+    };
     onLifeEvent((e) => {
       if (e === 'o2-online') this.complete('o2');
       if (e === 'water-online') this.complete('water');
@@ -97,12 +108,14 @@ export class Mission2 {
     if (id === 'o2') setTimeout(() => this.current?.id === 'filter' && this.say('filterHint'), 9000);
     if (id === 'air')
       setTimeout(() => {
-        terminalOpen.value = false;
+        terminal.value = null;
         this.onFinished();
       }, 5000);
   }
 
-  update(_dt: number, p: { feet: THREE.Vector3 }) {
+  update(dt: number, p: MissionCtx) {
+    // Life support keeps running while the terminal is open.
+    simulateLife(dt);
     const cur = this.current?.id;
     if (cur === 'goto' && Math.hypot(p.feet.x - this.unitPos.x, p.feet.z - this.unitPos.z) < 7) this.complete('goto');
     if (cur === 'air' && life.value.habO2 >= SAFE_O2 - 0.01) this.complete('air');
@@ -115,7 +128,7 @@ export class Mission2 {
   interact(id: string): string | null {
     if (id === 'ls-terminal') {
       if (this.current?.id === 'goto') this.complete('goto');
-      terminalOpen.value = true;
+      terminal.value = 'life';
       if (this.current?.id === 'inspect') this.complete('inspect');
       return null;
     }
@@ -138,5 +151,21 @@ export class Mission2 {
   label(id: string) {
     if (id === 'ls-filter') return life.value.filterOk ? 'p.filterNew' : this.current?.id === 'filter' ? 'p.filterHold' : 'p.filterClogged';
     return null;
+  }
+
+  guide(): GuideTarget | null {
+    switch (this.current?.id) {
+      case 'goto':
+        return { pos: this.marks.unit, label: 'wp.ls' };
+      case 'inspect':
+      case 'o2':
+      case 'water':
+      case 'air':
+        return { pos: this.marks.terminal, label: 'wp.terminal' };
+      case 'filter':
+        return { pos: this.marks.filter, label: 'wp.filter' };
+      default:
+        return null;
+    }
   }
 }

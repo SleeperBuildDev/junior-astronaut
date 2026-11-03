@@ -4,6 +4,31 @@ import { mulberry32 } from './heightfield';
 // Sun about 7 degrees above the horizon: at the lunar south pole the Sun always skims
 // the horizon, which is what gives the long, dramatic shadows.
 export const SUN_DIR = new THREE.Vector3(1, 0.125, 0.32).normalize();
+const SUN_HOME = SUN_DIR.clone();
+const SUN_HOME_ELEV = Math.asin(SUN_HOME.y);
+const SUN_HOME_AZ = Math.atan2(SUN_HOME.x, SUN_HOME.z);
+let sunSprite: THREE.Sprite | null = null;
+let daylight = 1;
+
+/** 0..1: how much direct sunlight reaches the base (0 when the Sun is below the horizon). */
+export const sunlight = () => daylight;
+
+/**
+ * Moves the Sun through a dark spell: k = 0 is the normal sky, k runs to 1 as the Sun
+ * slides along the horizon, sinks below it, stays down, then rises again further along.
+ * (At the real south pole the Sun circles the horizon slowly and hills block it; the
+ * game makes it sink much faster and deeper so you can see it happen.) Returns daylight.
+ */
+export function sunPath(k: number) {
+  const dip = THREE.MathUtils.smoothstep(k, 0.04, 0.24) * (1 - THREE.MathUtils.smoothstep(k, 0.76, 0.96));
+  const elev = SUN_HOME_ELEV - THREE.MathUtils.degToRad(10) * dip;
+  const az = SUN_HOME_AZ + THREE.MathUtils.degToRad(22) * k;
+  SUN_DIR.set(Math.sin(az) * Math.cos(elev), Math.sin(elev), Math.cos(az) * Math.cos(elev));
+  sunSprite?.position.copy(SUN_DIR).multiplyScalar(SKY_RADIUS * 0.9);
+  // The disc is half a degree wide: light fades as it slips below the horizon.
+  daylight = THREE.MathUtils.smoothstep(THREE.MathUtils.radToDeg(elev), -0.6, 1.2);
+  return daylight;
+}
 // Earth hangs low over the horizon. Seen from the Moon it is about 2 degrees wide.
 export const EARTH_DIR = new THREE.Vector3(-0.36, 0.19, -1).normalize();
 
@@ -103,6 +128,7 @@ function sunDisc() {
   sprite.position.copy(SUN_DIR).multiplyScalar(SKY_RADIUS * 0.9);
   // No atmosphere means no wide halo: a small hard disc with a faint glow.
   sprite.scale.setScalar(SKY_RADIUS * 0.9 * 0.08);
+  sunSprite = sprite;
   return sprite;
 }
 

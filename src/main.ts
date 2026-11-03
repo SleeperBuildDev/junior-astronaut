@@ -11,23 +11,27 @@ import { effect } from '@preact/signals';
 import { audioState, beep, playVoice, setExertion, setHum, sfx, startAudio, thud, type Sfx } from './audio/audio';
 import { createRenderer, Pipeline, PRESETS } from './engine/renderer';
 import { settings, updateSettings, type Quality } from './engine/settings';
-import { life, resetLife, simulateLife, terminalOpen } from './game/lifesupport';
+import { life, lifeOnline, resetLife } from './game/lifesupport';
 import { buildCutscenes, CutscenePlayer, type Shot } from './game/cutscenes';
+import type { GameMission, MissionCtx } from './game/mission';
 import { Mission1 } from './game/mission1';
-import { FILTER_HOLD_SECONDS, Mission2 } from './game/mission2';
-import { cardPopup, clock, comms, fps, heading, holdProgress, knowledge, loadProgress, missionNumber, panel, prompt, pushComm, screen, suit, warning, waypoint } from './game/state';
+import { Mission2 } from './game/mission2';
+import { Mission3 } from './game/mission3';
+import { BATTERY_KWH, power, powerOnline, resetPower, sunYaw } from './game/power';
+import { missionDone, progress } from './game/save';
+import { cardPopup, clock, comms, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { createPhysics } from './player/physics';
 import { Player } from './player/player';
 import { App, type Actions } from './ui/App';
 import { loadTextures } from './world/assets';
-import { buildOutpost, type Interactable, type OutpostModels } from './world/base';
+import { buildOutpost, statusMaterials, type Interactable, type OutpostModels } from './world/base';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { heightAt, LAYOUT } from './world/heightfield';
 import { buildRocks } from './world/rocks';
 import { buildTrails } from './world/trails';
-import { buildSky, EARTH_DIR, SUN_DIR } from './world/sky';
+import { buildSky, SUN_DIR, sunlight, sunPath } from './world/sky';
 import { buildTerrain, regolithMaterial } from './world/terrain';
 
 const QA = new URLSearchParams(location.search).has('qa');
@@ -36,7 +40,6 @@ const QA = new URLSearchParams(location.search).has('qa');
 const O2_PER_SEC = 100 / (14 * 60); // a full tank lasts ~14 real minutes of walking
 const POWER_PER_SEC = 100 / (30 * 60);
 const LAMP_POWER_PER_SEC = 100 / (20 * 60);
-const GAME_SECONDS_PER_SECOND = 30; // mission clock speed
 const DOSE_PER_GAME_DAY = 1.37; // mSv/day on the lunar surface (Chang'e 4, 2019)
 
 async function boot() {
@@ -55,8 +58,15 @@ async function boot() {
   input.allowUnlocked = QA;
 
   let player: Player | null = null;
-  let mission1: Mission1 | null = null;
-  let mission2: Mission2 | null = null;
+  /** Every playable mission, by number, with where it starts and its cutscenes. */
+  interface MissionEntry {
+    m: GameMission;
+    spawn: { pos: THREE.Vector3; yaw: number };
+    intro?: Shot[];
+    ending?: Shot[];
+  }
+  const registry = new Map<number, MissionEntry>();
+  const current = () => registry.get(missionNumber.value)!;
   let started = false;
   const cut = new CutscenePlayer();
   let scenes: ReturnType<typeof buildCutscenes> | null = null;
@@ -70,10 +80,21 @@ async function boot() {
   }
   let lowO2Warned = false;
 
+  /** Loads mission n, plays its intro, then shows its briefing. */
+  function openMission(n: number) {
+    startAudio();
+    panel.value = null;
+    missionNumber.value = n;
+    resetMission();
+    playCut(current().intro, () => (screen.value = 'briefing'));
+  }
+
   const actions: Actions = {
     start() {
-      startAudio();
-      playCut(scenes?.intro, () => (screen.value = 'briefing'));
+      openMission(1);
+    },
+    play(n: number) {
+      openMission(n);
     },
     skipCutscene() {
       cut.skip();
@@ -87,17 +108,14 @@ async function boot() {
       screen.value = 'playing';
       if (!started) {
         started = true;
-        if (missionNumber.value === 2) mission2!.begin();
-        else mission1!.begin();
+        current().m.begin();
       }
     },
     next() {
-      missionNumber.value = 2;
-      resetMission();
-      playCut(scenes?.m2Intro, () => (screen.value = 'briefing'));
+      if (registry.has(missionNumber.value + 1)) openMission(missionNumber.value + 1);
     },
     closeTerminal() {
-      terminalOpen.value = false;
+      terminal.value = null;
       void actions.resume();
     },
     restart() {
@@ -107,7 +125,6 @@ async function boot() {
     toMenu() {
       input.unlock();
       input.enabled = false;
-      missionNumber.value = 1;
       resetMission();
       screen.value = 'menu';
     },
@@ -134,7 +151,7 @@ async function boot() {
     if (cardPopup.value) sfx('unlock');
   });
   effect(() => {
-    if (terminalOpen.value) sfx('terminal');
+    if (terminal.value) sfx('terminal');
   });
   effect(() => {
     if (panel.value) sfx('panel');
@@ -144,7 +161,7 @@ async function boot() {
   document.addEventListener('mouseover', (e) => (e.target as HTMLElement).closest?.('button:not(:disabled)') && sfx('hover'));
 
   input.onLockChange = (locked) => {
-    if (!locked && screen.value === 'playing' && !terminalOpen.value && !QA) screen.value = 'paused';
+    if (!locked && screen.value === 'playing' && !terminal.value && !QA) screen.value = 'paused';
   };
 
   // ---------- world ----------
@@ -180,19 +197,22 @@ async function boot() {
   camera.add(lamp, lamp.target);
 
   const gltf = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  const names = ['hab_module', 'lab_module', 'node_module', 'rover', 'floodlight', 'power_unit'] as const;
+  const names = ['hab_module', 'lab_module', 'node_module', 'rover', 'floodlight', 'power_unit', 'battery_bank'] as const;
   const loaded = await Promise.all(names.map((n) => gltf.loadAsync(`./assets/models/${n}.glb`)));
   const models = Object.fromEntries(names.map((n, i) => [n, loaded[i].scene])) as unknown as OutpostModels;
   const outpost = buildOutpost(models);
   scene.add(outpost.group);
   // Floodlights light the deep shadows around the base (skipped on Low to save GPU time).
+  const floodLights: THREE.SpotLight[] = [];
   if (settings.value.quality !== 'low')
     for (const f of outpost.floodSpots) {
       const spot = new THREE.SpotLight(0xffe9cc, 9, 45, 0.6, 0.7, 1.6);
       spot.position.copy(f.pos);
       spot.target.position.copy(f.target);
       scene.add(spot, spot.target);
+      floodLights.push(spot);
     }
+  const hemi = scene.children.find((c) => (c as THREE.HemisphereLight).isHemisphereLight) as THREE.HemisphereLight;
   scene.add(await buildTrails());
   const rocks = await buildRocks(preset.terrainSegments > 260 ? 1600 : 900);
   scene.add(rocks.group);
@@ -211,11 +231,20 @@ async function boot() {
     pushComm('mc', 'c.boundary');
     void playVoice('boundary');
   };
-  mission1 = new Mission1(outpost.habitatPos, outpost.sensorLights);
-  mission2 = new Mission2(outpost.lifeSupport.pos, outpost.lifeSupport.lights);
   scenes = buildCutscenes(scene, outpost, { pos: startPos, yaw: startYaw });
-  mission1.onFinished = () => playCut(scenes!.m1End, () => (screen.value = 'complete'));
-  mission2.onFinished = () => playCut(scenes!.m2End, () => (screen.value = 'complete'));
+  const spawnAt = (x: number, z: number, look: THREE.Vector3) => {
+    const pos = new THREE.Vector3(x, heightAt(x, z), z);
+    return { pos, yaw: Math.atan2(-(look.x - pos.x), -(look.z - pos.z)) };
+  };
+  // Missions 2 and 3 start just outside the airlock, as if the crew had rested inside.
+  registry.set(1, { m: new Mission1(outpost), spawn: { pos: startPos, yaw: startYaw }, intro: scenes.intro, ending: scenes.m1End });
+  registry.set(2, { m: new Mission2(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.lifeSupport.pos), intro: scenes.m2Intro, ending: scenes.m2End });
+  registry.set(3, { m: new Mission3(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m3Intro, ending: scenes.m3End });
+  for (const [n, e] of registry)
+    e.m.onFinished = () => {
+      missionDone(n);
+      playCut(e.ending, () => (screen.value = 'complete'));
+    };
   // Space, Enter or Esc skips a cutscene.
   addEventListener('keydown', (e) => {
     if (screen.value === 'cutscene' && ['Space', 'Enter', 'Escape'].includes(e.code)) {
@@ -223,24 +252,32 @@ async function boot() {
       cut.skip();
     }
   });
-  // Mission 2 starts just outside the airlock, as if the crew had rested inside.
-  const m2Start = new THREE.Vector3(LAYOUT.base.x - 9, 0, LAYOUT.base.z + 4);
-  m2Start.y = heightAt(m2Start.x, m2Start.z);
-  const m2Yaw = Math.atan2(-(outpost.lifeSupport.pos.x - m2Start.x), -(outpost.lifeSupport.pos.z - m2Start.z));
   loadProgress.value = 1;
+
+  /** Puts the world in the state the current mission starts from (earlier missions' work done). */
+  function setupWorld(n: number) {
+    sunPath(0);
+    gameSpeed.value = NORMAL_SPEED;
+    if (n >= 3) {
+      lifeOnline();
+      const l = outpost.lifeSupport.lights;
+      l.o2.material = l.water.material = l.co2.material = statusMaterials.green;
+    } else resetLife();
+    if (n >= 4) powerOnline();
+    else resetPower();
+  }
 
   function resetMission() {
     started = false;
-    terminalOpen.value = false;
-    resetLife();
-    if (missionNumber.value === 2) player!.teleport(m2Start, m2Yaw);
-    else player!.teleport(startPos, startYaw);
+    terminal.value = null;
+    setupWorld(missionNumber.value);
+    const sp = current().spawn;
+    player!.teleport(sp.pos, sp.yaw);
     player!.pitch = 0;
     player!.stats = { distance: 0, jumps: 0 };
     suit.value = { o2: 100, power: 100, health: 100, tempIn: 21, tempOut: -48, dose: 0, light: false };
     clock.value = { day: 1, minutes: 6 * 60 + 10 };
     comms.value = [];
-    if (missionNumber.value === 1) knowledge.value = [];
     warning.value = null;
     lowO2Warned = false;
   }
@@ -258,9 +295,8 @@ async function boot() {
   };
 
   function labelFor(it: Interactable) {
-    if (it.id.startsWith('sensor-')) return mission1!.sensorLabel(Number(it.id.split('-')[1]));
-    const m2 = missionNumber.value === 2 ? mission2!.label(it.id) : null;
-    if (m2) return m2;
+    const l = current().m.label(it.id);
+    if (l) return l;
     if (it.id === 'o2') return suit.value.o2 > 98 ? 'p.o2full' : 'p.o2refill';
     return it.label();
   }
@@ -275,62 +311,32 @@ async function boot() {
       void playVoice('o2_refill');
       return;
     }
-    const reason = missionNumber.value === 2 ? mission2!.interact(it.id) : mission1!.interact(it.id);
+    const reason = current().m.interact(it.id);
     if (reason) {
       beep('warn');
       flash(reason);
     }
-    if (terminalOpen.value) input.unlock();
+    if (terminal.value) input.unlock();
+    // At a solar tower, look up at it so you can watch it deploy and turn.
+    if (terminal.value === 'array') {
+      const rig = outpost.arrays[Number(it.id.split('-')[1])];
+      const eye = camera.position;
+      const top = rig.pos.clone().add(new THREE.Vector3(0, rig.height * 0.42, 0));
+      player!.yaw = Math.atan2(-(top.x - eye.x), -(top.z - eye.z));
+      player!.pitch = Math.min(1.0, Math.atan2(top.y - eye.y, Math.hypot(top.x - eye.x, top.z - eye.z)));
+    }
   }
   let holdTime = 0;
 
   // ---------- guidance: where to go next ----------
-  const lsPos = outpost.lifeSupport.pos;
-  const GUIDE = {
-    habitat: new THREE.Vector3(LAYOUT.base.x + 2.5, outpost.habitatPos.y + 9.2, LAYOUT.base.z),
-    airlock: outpost.airlockPos.clone().add(new THREE.Vector3(0.3, 2, 0)),
-    ls: lsPos.clone().add(new THREE.Vector3(0, 1.6, 0)),
-    terminal: lsPos.clone().add(new THREE.Vector3(-0.2, 1.45, 1.5)),
-    filter: lsPos.clone().add(new THREE.Vector3(1.05, 0.95, 0.97)),
-  };
-  const sensorPos = LAYOUT.sensors.map((sp) => new THREE.Vector3(sp.x, heightAt(sp.x, sp.z) + 1.3, sp.z));
-
-  /** The point the player should head to for the current objective (null = no marker). */
-  function guideTarget(): { pos: THREE.Vector3; label: string; sky?: boolean } | null {
-    if (missionNumber.value === 1) {
-      switch (mission1!.current?.id) {
-        case 'earth':
-          return { pos: camera.position.clone().addScaledVector(EARTH_DIR, 1000), label: 'wp.earth', sky: true };
-        case 'reach':
-          return { pos: GUIDE.habitat, label: 'wp.habitat' };
-        case 'scan': {
-          const feet = player!.feet;
-          let best: THREE.Vector3 | null = null;
-          sensorPos.forEach((sp, i) => {
-            if (!mission1!.isScanned(i) && (!best || sp.distanceToSquared(feet) < best.distanceToSquared(feet))) best = sp;
-          });
-          return best ? { pos: best, label: 'wp.sensor' } : null;
-        }
-        case 'airlock':
-          return { pos: GUIDE.airlock, label: 'wp.airlock' };
-        default:
-          return null;
-      }
-    }
-    switch (mission2!.current?.id) {
-      case 'goto':
-        return { pos: GUIDE.ls, label: 'wp.ls' };
-      case 'inspect':
-      case 'o2':
-      case 'water':
-      case 'air':
-        return { pos: GUIDE.terminal, label: 'wp.terminal' };
-      case 'filter':
-        return { pos: GUIDE.filter, label: 'wp.filter' };
-      default:
-        return null;
-    }
-  }
+  const ctx = (): MissionCtx => ({
+    feet: player!.feet,
+    look: player!.forward(),
+    eye: camera.position,
+    distance: player!.stats.distance,
+    jumps: player!.stats.jumps,
+    playing: screen.value === 'playing' && !panel.value && !terminal.value,
+  });
 
   // A soft vertical light beam over the target, visible from far away.
   const beam = new THREE.Group();
@@ -346,7 +352,7 @@ async function boot() {
 
   const ndc = new THREE.Vector3();
   function updateGuide(now: number) {
-    const target = screen.value === 'playing' && !terminalOpen.value ? guideTarget() : null;
+    const target = screen.value === 'playing' && !terminal.value && player ? current().m.guide(ctx()) : null;
     if (!target || !player) {
       if (waypoint.value) waypoint.value = null;
       beam.visible = false;
@@ -399,13 +405,15 @@ async function boot() {
     timer.update(t);
     const dt = Math.min(timer.getDelta(), 0.1);
     const inMission = screen.value === 'playing' && !panel.value;
-    const playing = inMission && !terminalOpen.value;
+    const playing = inMission && !terminal.value;
 
     if (screen.value === 'cutscene') cut.update(dt, camera);
     else if (player) {
       player.update(dt, playing);
       if (playing) {
-        const holdId = missionNumber.value === 2 ? mission2!.holdId : null;
+        const m = current().m;
+        const holdId = m.holdId ?? null;
+        const holdSecs = m.holdSeconds ?? 2.5;
         if (focused && holdId && focused.id === holdId) {
           // Hold E to do a repair: keep looking at the part while holding the key.
           input.pressed('KeyE');
@@ -413,11 +421,11 @@ async function boot() {
           holdTime = input.isDown('KeyE') ? holdTime + dt : 0;
           // A ratchet sound every 0.35 s while the wrench turns.
           if (holdTime > 0 && Math.floor(holdTime / 0.35) !== Math.floor(before / 0.35)) sfx('ratchet');
-          holdProgress.value = holdTime > 0 ? Math.min(1, holdTime / FILTER_HOLD_SECONDS) : null;
-          if (holdTime >= FILTER_HOLD_SECONDS) {
+          holdProgress.value = holdTime > 0 ? Math.min(1, holdTime / holdSecs) : null;
+          if (holdTime >= holdSecs) {
             holdTime = 0;
             holdProgress.value = null;
-            mission2!.holdComplete(holdId);
+            m.holdComplete?.(holdId);
             sfx('clunk');
           }
         } else {
@@ -439,13 +447,12 @@ async function boot() {
         focused = hit ? (byObject.get(hit.object) ?? null) : null;
         prompt.value = focused ? labelFor(focused) : null;
 
-        if (missionNumber.value === 1) mission1!.update(dt, { distance: player.stats.distance, jumps: player.stats.jumps, feet: player.feet, look: player.forward() });
         simulateSuit(dt);
       } else prompt.value = null;
-      if (inMission && missionNumber.value === 2) {
-        // Life support keeps running while the terminal is open.
-        simulateLife(dt);
-        mission2!.update(dt, { feet: player.feet });
+      if (inMission && started) {
+        // Missions keep running while a terminal is open (machines don't stop).
+        current().m.update(dt, ctx());
+        advanceClock(dt);
       }
       input.endFrame();
     }
@@ -456,9 +463,17 @@ async function boot() {
       const f = player.feet;
       const near = (p: THREE.Vector3, r: number) => Math.max(0, 1 - Math.hypot(f.x - p.x, f.z - p.z) / r);
       const lsRunning = missionNumber.value === 1 || life.value.o2gen === 'online' ? 1 : 0.4;
-      setHum(Math.max(near(outpost.lifeSupport.pos, 14) * lsRunning, near(outpost.habitatPos, 12) * 0.5));
+      const pduRunning = power.value.bus ? 0.8 : 0.15;
+      setHum(Math.max(near(outpost.lifeSupport.pos, 14) * lsRunning, near(outpost.habitatPos, 12) * 0.5, near(outpost.power.pos, 10) * pduRunning));
     } else setHum(0);
+    syncPower();
     updateGuide(t / 1000);
+    // Sunlight, ground bounce and reflections all fade when the Sun goes below the horizon.
+    const day = sunlight();
+    sun.intensity = 7.5 * day;
+    sun.visible = day > 0.002;
+    hemi.intensity = 0.32 * (0.35 + 0.65 * day);
+    scene.environmentIntensity = 0.55 * (0.2 + 0.8 * day);
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, 300);
     sun.target.position.copy(camera.position);
     sky.update(camera);
@@ -492,7 +507,7 @@ async function boot() {
     s.o2 = Math.max(0, s.o2 - O2_PER_SEC * exertion * dt);
     s.power = Math.max(0, s.power - (POWER_PER_SEC + (s.light ? LAMP_POWER_PER_SEC : 0)) * dt);
     if (s.power === 0) s.light = false;
-    s.dose += (DOSE_PER_GAME_DAY / 86400) * GAME_SECONDS_PER_SECOND * dt;
+    s.dose += (DOSE_PER_GAME_DAY / 86400) * gameSpeed.value * dt;
     s.tempOut = -48 + Math.sin(performance.now() / 9000) * 3;
     if (s.o2 === 0) {
       s.health = Math.max(0, s.health - 4 * dt);
@@ -509,15 +524,45 @@ async function boot() {
     }
     if (s.health === 0) {
       flash('w.blackout', 5);
-      player!.teleport(startPos, startYaw);
+      player!.teleport(current().spawn.pos, current().spawn.yaw);
       s.o2 = 100;
       s.health = 60;
       lowO2Warned = false;
     }
     suit.value = s;
     setExertion(player!.sprinting ? 1 : s.o2 < 20 ? 0.8 : 0.2);
-    const minutes = clock.value.minutes + (dt * GAME_SECONDS_PER_SECOND) / 60;
-    clock.value = { day: 1 + Math.floor((minutes - 6 * 60 - 10) / 1440), minutes };
+  }
+
+  function advanceClock(dt: number) {
+    const minutes = clock.value.minutes + (dt * gameSpeed.value) / 60;
+    clock.value = { day: missionNumber.value + Math.floor((minutes - 6 * 60 - 10) / 1440), minutes };
+  }
+
+  // ---------- power system visuals (solar towers, battery gauges, main switch, floodlights) ----------
+  const towerEase = (x: number) => x * x * (3 - 2 * x);
+  function syncPower() {
+    const p = power.value;
+    outpost.arrays.forEach((rig, i) => {
+      const a = p.arrays[i];
+      // The mast extends first, then the blankets roll down.
+      rig.upper.position.y = THREE.MathUtils.lerp(rig.stowedY, rig.deployedY, towerEase(Math.min(1, a.deploy / 0.55)));
+      const unroll = Math.max(0.02, towerEase(Math.max(0, (a.deploy - 0.45) / 0.55)));
+      for (const w of rig.wings) w.scale.y = unroll;
+      rig.head.rotation.y = THREE.MathUtils.degToRad(a.yaw) - rig.group.rotation.y;
+      rig.light.material = a.tracking ? statusMaterials.green : a.deploy >= 1 ? statusMaterials.cyan : statusMaterials.amber;
+    });
+    const charge = p.batteryKWh / BATTERY_KWH;
+    const gaugeMat = charge > 0.5 ? statusMaterials.green : charge > 0.2 ? statusMaterials.amber : statusMaterials.red;
+    for (const g of outpost.power.gauges) {
+      g.scale.y = Math.max(0.03, charge);
+      g.material = gaugeMat;
+    }
+    outpost.power.busLight.material = p.bus ? statusMaterials.green : statusMaterials.red;
+    const lever = outpost.power.lever;
+    lever.rotation.z += ((p.bus ? Math.PI - 0.9 : 0.9) - lever.rotation.z) * 0.15;
+    const floodOn = p.loads.flood;
+    for (const f of floodLights) f.intensity = floodOn ? 9 : 0;
+    if (outpost.floodLamp) outpost.floodLamp.emissiveIntensity = floodOn ? 1 : 0;
   }
 
   // Warn before leaving mid-mission (back button, closing the tab).
@@ -536,7 +581,24 @@ async function boot() {
           return actions.resume();
         },
         skip: () => cut.skip(),
-        cut: (name: 'intro' | 'm1End' | 'm2Intro' | 'm2End') => playCut(scenes![name], () => (screen.value = 'menu')),
+        cut: (name: keyof NonNullable<typeof scenes>) => playCut(scenes![name], () => (screen.value = 'menu')),
+        /** Jump straight to mission n (skips the lock), playing its intro. */
+        mission: (n: number) => openMission(n),
+        /** Stand `dist` metres in front of an interactable, looking at it. */
+        goTo: (id: string, dist = 1.6, angle?: number) => {
+          const it = outpost.interactables.find((i) => i.id === id)!;
+          const p = it.object.getWorldPosition(new THREE.Vector3());
+          const f = player!.feet;
+          const a = angle ?? Math.atan2(f.x - p.x, f.z - p.z);
+          const x = p.x + Math.sin(a) * dist;
+          const z = p.z + Math.cos(a) * dist;
+          const feet = new THREE.Vector3(x, heightAt(x, z), z);
+          player!.teleport(feet, Math.atan2(-(p.x - x), -(p.z - z)));
+          player!.pitch = Math.atan2(p.y - (feet.y + 1.62), dist);
+        },
+        power: () => ({ ...power.value, sunYaw: sunYaw() }),
+        speed: () => gameSpeed.value,
+        progress: () => progress.value,
         cutscene: () => screen.value === 'cutscene',
         teleport: (x: number, z: number, yaw = 0, pitch = 0) => {
           player!.teleport(new THREE.Vector3(x, heightAt(x, z), z), yaw);
@@ -556,7 +618,7 @@ async function boot() {
           dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
           setTimeout(() => dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' })), ms);
         },
-        state: () => ({ mission: missionNumber.value, terminal: terminalOpen.value, screen: screen.value, suit: suit.value, stats: player!.stats, pos: player!.feet, grounded: player!.grounded }),
+        state: () => ({ mission: missionNumber.value, terminal: terminal.value, screen: screen.value, suit: suit.value, stats: player!.stats, pos: player!.feet, grounded: player!.grounded }),
         gpu: () => {
           const gl = renderer.getContext();
           const ext = gl.getExtension('WEBGL_debug_renderer_info');

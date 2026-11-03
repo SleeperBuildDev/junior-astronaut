@@ -13,6 +13,12 @@ Done and tested (git history has one commit per milestone):
   scan 3 environment sensors (E), enter the airlock.
 - **Mission 2 — Life Support Activation**: go to the life-support unit, open its terminal, 3-step
   oxygen-generator start-up, hold-E filter repair, start water recovery, wait for habitat O₂ = 20.9%.
+- **Mission 3 — Power Up the Outpost**: power terminal, deploy + aim 3 VSAT solar towers (top-down
+  aim dial, cos-law output, lock-on → sun tracking), hold-E main switch, charge batteries to 60% (time
+  ×13), power plan (switch off loads until battery ≥ 10 h), Sun sets for real (sunPath), helmet lamp,
+  sunrise. BASE POWER HUD panel, battery bank GLB with charge bars, fast-forward badge.
+- **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
+  cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
   shadows, stars + Milky Way, Earth (NASA Blue Marble), outpost (Blender GLB hero models + code-built
   parts), rover (parked, not drivable), floodlights, tracks/footprints, landing pad lights.
@@ -25,7 +31,7 @@ Done and tested (git history has one commit per milestone):
 - Cutscenes: Mission 1 landing intro (descent + ballistic dust), Mission 1 ending, Mission 2 intro + ending.
 - Procedural sound effects (Web Audio), machinery hum, ambient music.
 
-**Remaining (the main job): Missions 3–9** plus the systems they need — see "Roadmap" below.
+**Remaining (the main job): Missions 4–9** plus the systems they need — see "Roadmap" below.
 
 ## Run, test, build
 
@@ -41,14 +47,16 @@ npm run build        # production build to dist/ (base './', works on any static
 - **The Browser pane throttles rendering when hidden**, so its FPS is meaningless. Measure with
   the Playwright scripts, which drive the installed Chrome on the real GPU (no browser download):
   - `node qa/perf.mjs` — FPS / triangles / draw calls per quality preset (+ console errors).
-  - `node qa/mission1.mjs`, `node qa/mission2.mjs` — automated playthroughs with screenshots.
+  - `node qa/mission1.mjs`, `node qa/mission2.mjs`, `node qa/mission3.mjs [en|my]` — automated playthroughs with screenshots.
   - `node qa/cutscenes.mjs [en|my]` — screenshots of every cutscene.
   - `node qa/shots.mjs <prefix>` — eye-level beauty shots of the outpost.
   - `node qa/guide.mjs [en|my]` — guidance marker + language screenshots.
   - `node qa/sfx.mjs` — plays every sound effect, checks the audio engine.
   These rely on **QA hooks** exposed only with `?qa=1` (`window.__qa`): `start, play, next, skip,
   cut(name), teleport(x,z,yaw,pitch), look(yaw,pitch), key(code,ms), holdE(ms), closeTerminal,
-  state, info, gpu, show(name,on), shadows(on), quality(q), sfx(name), audio, cutscene`.
+  state, info, gpu, show(name,on), shadows(on), quality(q), sfx(name), audio, cutscene,
+  mission(n)` (jump to mission n), `goTo(id, dist, angle?)` (stand in front of an interactable),
+  `power, speed, progress`.
   In QA mode movement works without pointer lock. Extend these hooks for new missions.
 - Show the owner previews along the way: screenshot with the QA scripts, then send the PNGs
   (SendUserFile). He asked for previews during development.
@@ -70,7 +78,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/engine/settings.ts` | Persisted settings signal (sensitivity, invertY, fov, quality, volume, arrowLook, **lang**) |
 | `src/world/heightfield.ts` | Deterministic terrain height function, craters, flattened areas, `LAYOUT` (base, lander, sensors, playRadius) |
 | `src/world/terrain.ts` | Near (800 m, physics) + far (9 km) terrain meshes; regolith shader (anti-tiling, desaturation, distance-faded normals) |
-| `src/world/sky.ts` | Stars, Milky Way, sun disc, Earth shader; `SUN_DIR`, `EARTH_DIR` (sun ≈7° high) |
+| `src/world/sky.ts` | Stars, Milky Way, sun disc, Earth shader; `SUN_DIR`, `EARTH_DIR` (sun ≈7° high); `sunPath(k)` moves the Sun through a dark spell, `sunlight()` (main dims lights from it) |
 | `src/world/base.ts` | Outpost: places GLB models (`OutpostModels`), code-built parts (airlock, VSAT solar arrays, antenna, O₂ station, life-support unit, lander, sensors, crates), colliders (`ColliderSpec`), interactables, blinkers, status materials |
 | `src/world/rocks.ts` | Instanced Poly Haven moon rocks (2 LOD layers) + colliders |
 | `src/world/trails.ts` | Rover-track / footprint ribbons (Poly Haven textures) |
@@ -78,8 +86,11 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/player/input.ts` | Keyboard by `event.code` (works with Burmese layout), pointer lock (raw input), blur/visibility clearing |
 | `src/player/player.ts` | Rapier kinematic character controller, Moon gravity 1.62, walk/sprint/jump, head bob, landing dip, footstep/jump callbacks, boundary |
 | `src/player/physics.ts` | Rapier world: terrain trimesh + collider specs |
-| `src/game/state.ts` | Signals: screen, panel, suit, mission, prompt, warning, comms, knowledge, cardPopup, missionNumber, holdProgress, waypoint, cinema |
-| `src/game/mission1.ts`, `mission2.ts` | Mission classes (pattern below) |
+| `src/game/state.ts` | Signals: screen, panel, suit, mission, prompt, warning, comms, knowledge, cardPopup, missionNumber, holdProgress, waypoint, cinema, `terminal` ('life'/'power'/'array'), `gameSpeed` (game s per real s, normal 30) |
+| `src/game/mission.ts` | `GameMission` interface (begin/update/interact/label/guide/hold) every mission implements |
+| `src/game/mission1.ts` … `mission3.ts` | Mission classes (pattern below); each owns its guide targets |
+| `src/game/save.ts` | `progress` (reached mission, knowledge) in localStorage, `MISSION_COUNT`, `missionDone(n)` |
+| `src/game/power.ts` | Power simulation: towers (deploy/aim/track), bus, battery (100 kWh), loads, `confirmPlan`, `arrayPanel` |
 | `src/game/lifesupport.ts` | Life-support simulation + terminal actions (`life` signal, `terminalOpen`) |
 | `src/game/knowledge.ts` | Knowledge cards (English) + `cardFor(id, lang)` |
 | `src/game/cutscenes.ts` | `CutscenePlayer` (shots with camera fn, subtitle key, narration id) + `buildCutscenes()` |
@@ -107,11 +118,11 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
    `cs_` = narrator `af_heart`), run it with the Kokoro venv python. Files land in `public/assets/audio/vo/`.
 4. **World objects**: build in `base.ts` (or a new Blender asset in `outpost_assets.py` → gltfpack → load
    in `main.ts`), add colliders + interactables (prompt label = key).
-5. **main.ts wiring**: currently missions are hard-wired as `missionNumber 1 | 2` (`actions.resume`,
-   `actions.next`, `labelFor`, `use`, update calls, `guideTarget()`, hold-E). **Refactor this into a
-   mission registry** (array of mission objects + per-mission start position) before adding Mission 3.
-   `NEXT_MISSION`/`SUMMARY` in `App.tsx` and the briefing keys must cover the new mission.
-6. **Guidance**: add the mission's targets to `guideTarget()` so the marker + beam point at them.
+5. **main.ts wiring**: `registry.set(N, { m: new MissionN(outpost), spawn, intro, ending })`, add the
+   world state earlier missions leave behind to `setupWorld(n)` (e.g. `lifeOnline()`, `powerOnline()`),
+   and bump `MISSION_COUNT` in `save.ts`. Add `mname.N`, `briefing.mN.*`, `complete.mN.*` keys and
+   update `complete.soonTitle`. New terminal kinds go in the `terminal` signal + `App` render.
+6. **Guidance**: implement `guide(ctx)` in the mission class so the marker + beam point at its targets.
 7. **Cutscenes**: intro/ending shots in `cutscenes.ts` (`move`, `orbit` helpers), narration + `cs.*` keys.
 8. **QA**: add `qa/missionN.mjs` (copy mission2.mjs), run it, plus `perf.mjs`, before committing.
 
@@ -131,7 +142,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 - `curl` (Windows Schannel) fails TLS on some NASA hosts (svs.gsfc.nasa.gov) — use the Browser pane
   or Python's urllib; never disable certificate checks.
 - Performance target: the dev PC has only an **Intel UHD 770 integrated GPU**. Current: Medium ≈ 95–110 fps,
-  High ≈ 70+, Low ≈ 200+ at 1600×900. Keep draw calls/lights modest; floodlight SpotLights are skipped on Low.
+  High ≈ 70+, Low ≈ 200+ at 1600×900 (after Mission 3: Medium ≈ 100 fps, 386 draw calls). Keep draw calls/lights modest; floodlight SpotLights are skipped on Low.
 
 ## Tools installed on this PC (nothing needs reinstalling)
 
@@ -166,10 +177,6 @@ Shared systems to build first (they unlock several missions):
   and an after-action explanation card.
 
 Mission ideas:
-- **M3 Power Up the Outpost**: inspect the power unit, raise/aim VSAT solar arrays to track the low
-  sun, connect cables at the power unit, charge batteries; then a short "lunar night/eclipse" where
-  generation drops and the player sets load priorities on a power terminal. Cards: solar power,
-  energy storage, lunar day/night (~29.5 Earth days), south-pole illumination.
 - **M4 Build a Lunar Habitat**: introduce the construction terminal; build a sleep module and connect it
   to the node; pressurise it, set temperature. Cards: pressurised habitats, thermal control.
 - **M5 Establish Food Production**: build/activate a greenhouse module (LED growing lights, hydroponics),
@@ -192,6 +199,10 @@ Science must stay accurate and age-appropriate, sourced from NASA (or similar) a
 data sources (see the Credits screen).
 
 ## Working with the owner
+
+- **Keep token use lean** (owner's request): no multi-agent checks while building, only for big
+  decisions/final testing; Sonnet helpers for routine jobs (Burmese review, lookups); few, targeted
+  test runs; but send preview screenshots after each chunk of progress.
 
 - He tests in Chrome at http://localhost:5173 and sends screenshots of problems; fix root causes.
 - Send preview screenshots during big changes.

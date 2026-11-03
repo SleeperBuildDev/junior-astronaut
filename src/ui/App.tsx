@@ -3,23 +3,28 @@ import { useEffect, useState } from 'preact/hooks';
 import { setVolume } from '../audio/audio';
 import { settings, updateSettings, type Quality } from '../engine/settings';
 import { cardFor, CARDS } from '../game/knowledge';
-import { life, O2_STEPS, o2Step, SAFE_O2, startWater, terminalOpen, type SysState } from '../game/lifesupport';
+import { life, O2_STEPS, o2Step, SAFE_O2, startWater, type SysState } from '../game/lifesupport';
+import { aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState } from '../game/power';
+import { MISSION_COUNT, progress } from '../game/save';
 import {
   cardPopup,
   cinema,
   clock,
   comms,
   fps,
+  gameSpeed,
   heading,
   holdProgress,
   knowledge,
   loadProgress,
   mission,
   missionNumber,
+  NORMAL_SPEED,
   panel,
   prompt,
   screen,
   suit,
+  terminal,
   warning,
   waypoint,
 } from '../game/state';
@@ -27,6 +32,8 @@ import { num, t } from '../i18n';
 
 export interface Actions {
   start: () => void;
+  /** Opens mission n (from Continue or Mission select). */
+  play: (n: number) => void;
   resume: () => void;
   restart: () => void;
   toMenu: () => void;
@@ -179,7 +186,13 @@ function Hud() {
         <span>
           {String(hh).padStart(2, '0')}:{String(mm).padStart(2, '0')} UTC
         </span>
+        {gameSpeed.value > NORMAL_SPEED ? (
+          <span class="ff">
+            ⏩ {t('hud.fast')} ×{num(Math.round(gameSpeed.value / NORMAL_SPEED))}
+          </span>
+        ) : null}
       </div>
+      {missionNumber.value >= 3 ? <BasePanel /> : null}
       <div class="comms">
         {comms.value.slice(-2).map((cm) => (
           <div class="comm" key={cm.id}>
@@ -223,13 +236,34 @@ function Hud() {
   );
 }
 
-function SysRow({ name, state, children }: { name: string; state: SysState; children?: ComponentChildren }) {
+/** Outpost power at a glance: solar input, battery charge and what the base is using. */
+function BasePanel() {
+  const p = power.value;
+  const pct = (p.batteryKWh / BATTERY_KWH) * 100;
+  return (
+    <div class="panel base">
+      <div class="panel-title">{t('hud.base')}</div>
+      <div class="base-row">
+        <span>☀ {t('hud.solar')}</span>
+        <b>{solarKW(p).toFixed(1)} kW</b>
+      </div>
+      <Bar label={'🔋 ' + t('hud.battery')} value={pct} unit="%" warnAt={30} critAt={12} />
+      <div class="base-row">
+        <span>⚡ {t('hud.load')}</span>
+        <b>{loadKW(p).toFixed(1)} kW</b>
+      </div>
+      {!p.bus ? <small class="base-note">{t('hud.busOff')}</small> : p.sun < 0.05 ? <small class="base-note">{t('hud.dark')}</small> : null}
+    </div>
+  );
+}
+
+function SysRow({ name, state, label, children }: { name: string; state: SysState; label?: string; children?: ComponentChildren }) {
   return (
     <div class={`sys ${state}`}>
       <div class="sys-head">
         <span class="led" />
         <b>{name}</b>
-        <span class="sys-state">{t('state.' + state)}</span>
+        <span class="sys-state">{label ?? t('state.' + state)}</span>
       </div>
       {children}
     </div>
@@ -291,6 +325,192 @@ function Terminal({ actions }: { actions: Actions }) {
           <small>{t('term.co2text')}</small>
         </SysRow>
       </div>
+    </div>
+  );
+}
+
+type TowerState = 'stowed' | 'deploying' | 'deployed' | 'tracking';
+const towerState = (a: ArrayState): TowerState => (a.tracking ? 'tracking' : a.deploy >= 1 ? 'deployed' : a.deploying ? 'deploying' : 'stowed');
+const towerSys: Record<TowerState, SysState> = { stowed: 'offline', deploying: 'starting', deployed: 'starting', tracking: 'online' };
+
+function PowerTerminal({ actions }: { actions: Actions }) {
+  const p = power.value;
+  const solar = solarKW(p);
+  const load = loadKW(p);
+  const hours = hoursLeft(p);
+  const enough = hours >= NIGHT_HOURS;
+  const planStep = mission.value.steps.find((st) => !st.done)?.id === 'plan' && missionNumber.value === 3;
+  const hoursText = Number.isFinite(hours) ? num(Math.floor(hours * 10) / 10) : '∞';
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal power-term">
+        <div class="modal-head">
+          <h2>{t('pw.title')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <div class="gauges three">
+          <div class="gauge">
+            <span>☀ {t('pw.solar')}</span>
+            <b class={solar > 1 ? 'good' : 'low'}>{solar.toFixed(1)} kW</b>
+            <small>{p.sun < 0.05 ? t('pw.sunDown') : t('pw.sunUp')}</small>
+          </div>
+          <div class="gauge">
+            <span>🔋 {t('pw.battery')}</span>
+            <b class={p.batteryKWh < 30 ? 'low' : 'good'}>{Math.round((p.batteryKWh / BATTERY_KWH) * 100)}%</b>
+            <div class="bar">
+              <i style={{ width: `${(p.batteryKWh / BATTERY_KWH) * 100}%` }} />
+            </div>
+            <small>{t('pw.stored', { kwh: num(Math.round(p.batteryKWh)), cap: num(BATTERY_KWH) })}</small>
+          </div>
+          <div class="gauge">
+            <span>⚡ {t('pw.load')}</span>
+            <b>{load.toFixed(1)} kW</b>
+            <small>{p.bus ? (solar >= load ? t('pw.charging') : t('pw.draining')) : t('pw.notConnected')}</small>
+          </div>
+        </div>
+        <div class="towers">
+          {p.arrays.map((a, i) => {
+            const st = towerState(a);
+            return (
+              <div class={`sys ${towerSys[st]}`}>
+                <div class="sys-head">
+                  <span class="led" />
+                  <b>{t('pw.tower', { n: num(i + 1) })}</b>
+                  <span class="sys-state">{t('arr.state.' + st)}</span>
+                </div>
+                <small>{arrayKW(a, p.sun).toFixed(1)} kW</small>
+              </div>
+            );
+          })}
+        </div>
+        <SysRow name={t('pw.bus')} state={p.bus ? 'online' : 'offline'}>
+          <small>{p.bus ? t('pw.busOn') : t('pw.busOff')}</small>
+        </SysRow>
+        <div class={`sys loads ${planStep ? 'focus' : ''}`}>
+          <div class="sys-head">
+            <b>{t('pw.loads')}</b>
+            <span class="sys-state">{p.planLocked ? t('pw.locked') : ''}</span>
+          </div>
+          <div class="load-list">
+            {LOADS.map((l) => (
+              <button class={`load ${p.loads[l.id] ? 'on' : 'off'}`} disabled={l.essential || p.planLocked} onClick={() => setLoad(l.id, !p.loads[l.id])}>
+                <span class="sw">{p.loads[l.id] ? t('pw.on') : t('pw.off')}</span>
+                <span class="nm">{t('load.' + l.id)}</span>
+                {l.essential ? <em>{t('pw.essential')}</em> : null}
+                <b>{l.kw.toFixed(1)} kW</b>
+              </button>
+            ))}
+          </div>
+          <p class={`budget ${enough ? 'good' : 'low'}`}>
+            {t('pw.lasts', { h: hoursText })} <span>{t('pw.night', { h: num(NIGHT_HOURS) })}</span>
+          </p>
+          <small>{t('pw.explain')}</small>
+          {planStep ? (
+            <button class="btn primary small confirm" disabled={!enough} onClick={() => confirmPlan() && actions.closeTerminal()}>
+              {enough ? t('pw.confirm') : t('pw.notEnough')}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Top-down view of a tower: where the Sun is and which way the panels face. */
+function AimDial({ a }: { a: ArrayState }) {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const sy = rad(sunYaw());
+  const ay = rad(a.yaw);
+  const sun = [Math.sin(sy) * 78, Math.cos(sy) * 78];
+  const face = [Math.sin(ay), Math.cos(ay)];
+  const side = [face[1], -face[0]];
+  const locked = Math.abs(aimError(a)) < LOCK_DEG;
+  const col = a.tracking || locked ? '#5cf29a' : '#5fd4ff';
+  return (
+    <svg class="dial" viewBox="-100 -100 200 200" aria-hidden="true">
+      <circle r="88" fill="rgba(255,255,255,0.03)" stroke="rgba(120,200,255,0.3)" />
+      <text x="0" y="-74" text-anchor="middle" class="dial-n">N</text>
+      <line x1="0" y1="0" x2={sun[0] * 0.85} y2={sun[1] * 0.85} stroke="rgba(255,200,80,0.35)" stroke-dasharray="4 4" />
+      <circle cx={sun[0]} cy={sun[1]} r="11" fill="#ffd36a" />
+      <circle cx={sun[0]} cy={sun[1]} r="17" fill="none" stroke="#ffd36a" stroke-opacity="0.4" />
+      <line x1={-side[0] * 44} y1={-side[1] * 44} x2={side[0] * 44} y2={side[1] * 44} stroke={col} stroke-width="8" stroke-linecap="round" />
+      <line x1="0" y1="0" x2={face[0] * 46} y2={face[1] * 46} stroke={col} stroke-width="2.5" />
+      <circle cx={face[0] * 50} cy={face[1] * 50} r="4" fill={col} />
+      <circle r="5" fill="#cfd8e0" />
+    </svg>
+  );
+}
+
+function ArrayPanel({ actions }: { actions: Actions }) {
+  const i = arrayPanel.value;
+  const a = power.value.arrays[i];
+  const st = towerState(a);
+  const err = aimError(a);
+  const kw = arrayKW(a, 1);
+  const yaw = Math.round((((a.yaw % 360) + 360) % 360) * 10) / 10;
+  const turn = (d: number) => aimArray(i, a.yaw + d);
+  const canAim = a.deploy >= 1 && !a.tracking;
+  return (
+    <div class="side-panel terminal">
+      <div class="modal-head">
+        <h2>{t('arr.title', { n: num(i + 1) })}</h2>
+        <button class="btn small" onClick={actions.closeTerminal}>
+          {t('term.back')}
+        </button>
+      </div>
+      <SysRow name={t('arr.status')} state={towerSys[st]} label={t('arr.state.' + st)} />
+      <ol class="checklist">
+        <li class={a.deploy > 0 ? 'done' : 'next'}>
+          <button class="btn small" data-action="deploy" disabled={a.deploy > 0 || a.deploying} onClick={() => deployArray(i)}>
+            {a.deploy > 0 ? '✓' : num(1)}. {a.deploying ? t('arr.deploying') : t('arr.deploy')}
+          </button>
+          <small>{t('arr.deployWhy')}</small>
+          {a.deploying ? (
+            <div class="bar hold">
+              <i style={{ width: `${Math.round(a.deploy * 100)}%` }} />
+            </div>
+          ) : null}
+        </li>
+        <li class={a.tracking ? 'done' : a.deploy >= 1 ? 'next' : ''}>
+          <b class="step-label">
+            {a.tracking ? '✓' : num(2)}. {t('arr.aim')}
+          </b>
+          <div class="aim">
+            <AimDial a={a} />
+            <div class="aim-read">
+              <span>{t('arr.angle')}</span>
+              <b class={Math.abs(err) < LOCK_DEG ? 'good' : Math.abs(err) < 30 ? '' : 'low'}>{num(Math.round(Math.abs(err)))}°</b>
+              <span>{t('arr.output')}</span>
+              <b>
+                {kw.toFixed(1)} <small>/ {num(ARRAY_KW)} kW</small>
+              </b>
+              <div class="bar">
+                <i style={{ width: `${(kw / ARRAY_KW) * 100}%` }} />
+              </div>
+            </div>
+          </div>
+          <input
+            type="range"
+            class="aim-slider"
+            min="0"
+            max="359.9"
+            step="0.5"
+            value={yaw}
+            disabled={!canAim}
+            onInput={(e) => aimArray(i, +(e.target as HTMLInputElement).value)}
+          />
+          <div class="aim-btns">
+            {[-10, -2, 2, 10].map((d) => (
+              <button class="btn small" disabled={!canAim} onClick={() => turn(d)}>
+                {d < 0 ? (d === -10 ? '◀◀' : '◀') : d === 10 ? '▶▶' : '▶'}
+              </button>
+            ))}
+          </div>
+          <small>{a.tracking ? t('arr.tracking') : t('arr.cos')}</small>
+        </li>
+      </ol>
     </div>
   );
 }
@@ -445,6 +665,25 @@ function Credits() {
   );
 }
 
+function MissionSelect({ actions }: { actions: Actions }) {
+  const reached = progress.value.reached;
+  return (
+    <div class="ms-list">
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
+        const open = n <= reached && n <= MISSION_COUNT;
+        const tag = n > MISSION_COUNT ? t('ms.soon') : !open ? t('ms.locked') : n < reached ? t('ms.done') : t('ms.next');
+        return (
+          <button class={`ms-item ${open ? '' : 'locked'}`} disabled={!open} onClick={() => actions.play(n)}>
+            <b>{num(n)}</b>
+            <span>{t('mname.' + n)}</span>
+            <small>{open ? tag : '🔒 ' + tag}</small>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Panel({ actions }: { actions: Actions }) {
   const p = panel.value;
   if (!p) return null;
@@ -461,6 +700,7 @@ function Panel({ actions }: { actions: Actions }) {
         {p === 'controls' && <ControlsCard />}
         {p === 'knowledge' && <KnowledgeCenter />}
         {p === 'credits' && <Credits />}
+        {p === 'missions' && <MissionSelect actions={actions} />}
       </div>
     </div>
   );
@@ -491,9 +731,20 @@ function Menu({ actions }: { actions: Actions }) {
         <Title />
         <p class="tagline">{t('menu.tagline')}</p>
         <div class="menu-buttons">
-          <button class="btn primary" onClick={actions.start}>
-            {t('menu.start')}
-          </button>
+          {progress.value.reached > 1 ? (
+            <>
+              <button class="btn primary" onClick={() => actions.play(progress.value.reached)}>
+                {t('menu.continue', { name: t('mname.' + progress.value.reached) })}
+              </button>
+              <button class="btn" onClick={() => (panel.value = 'missions')}>
+                {t('menu.select')}
+              </button>
+            </>
+          ) : (
+            <button class="btn primary" onClick={actions.start}>
+              {t('menu.start')}
+            </button>
+          )}
           <button class="btn" onClick={() => (panel.value = 'controls')}>
             {t('menu.controls')}
           </button>
@@ -559,11 +810,9 @@ function Paused({ actions }: { actions: Actions }) {
   );
 }
 
-const NEXT_MISSION: Record<number, string | undefined> = { 1: 'complete.m2.name' };
-
 function Complete({ actions }: { actions: Actions }) {
   const n = missionNumber.value;
-  const next = NEXT_MISSION[n];
+  const next = n < MISSION_COUNT ? 'mname.' + (n + 1) : undefined;
   return (
     <div class="menu complete">
       <div class="menu-inner wide">
@@ -667,8 +916,10 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'briefing' && <Briefing actions={actions} />}
       {sc === 'paused' && !panel.value && <Paused actions={actions} />}
       {sc === 'complete' && <Complete actions={actions} />}
-      {sc === 'playing' && terminalOpen.value && <Terminal actions={actions} />}
-      {sc === 'playing' && !terminalOpen.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
+      {sc === 'playing' && terminal.value === 'life' && <Terminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'power' && <PowerTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'array' && <ArrayPanel actions={actions} />}
+      {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>
   );

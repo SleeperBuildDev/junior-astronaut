@@ -25,8 +25,6 @@ export const life = signal({
   waterL: 46,
 });
 
-export const terminalOpen = signal(false);
-
 export const SAFE_O2 = 20.9;
 
 type Listener = (event: 'o2-online' | 'water-online' | 'filter') => void;
@@ -37,6 +35,11 @@ export function onLifeEvent(l: Listener) {
 
 export function resetLife() {
   life.value = { o2gen: 'offline', water: 'damaged', co2: 'online', o2Step: 0, filterOk: false, habO2: 15.2, waterL: 46 };
+}
+
+/** The state Mission 2 leaves behind: everything running (used by later missions). */
+export function lifeOnline() {
+  life.value = { o2gen: 'online', water: 'online', co2: 'online', o2Step: O2_STEPS.length, filterOk: true, habO2: SAFE_O2, waterL: 96 };
 }
 
 export function o2Step(i: number) {

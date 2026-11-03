@@ -27,6 +27,21 @@ export interface Outpost {
   floodSpots: { pos: THREE.Vector3; target: THREE.Vector3 }[];
   lander: THREE.Object3D;
   airlockLight: THREE.Mesh;
+  arrays: VsatRig[];
+  power: {
+    pos: THREE.Vector3;
+    terminalPos: THREE.Vector3;
+    busPos: THREE.Vector3;
+    batteryPos: THREE.Vector3;
+    /** Direction the battery cabinet doors face. */
+    batteryFront: THREE.Vector3;
+    lever: THREE.Object3D;
+    busLight: THREE.Mesh;
+    /** Glowing charge bars on the battery cabinet doors (scale.y = charge). */
+    gauges: THREE.Mesh[];
+  };
+  /** The floodlights' emissive lamp material (dimmed when they are switched off). */
+  floodLamp: THREE.MeshStandardMaterial | null;
 }
 
 // ---------- procedural textures ----------
@@ -194,33 +209,84 @@ function airlock(radius: number) {
   return { group: g, light, hatch };
 }
 
+/** A deployable solar tower: rig parts that main.ts animates from the power simulation. */
+export interface VsatRig {
+  group: THREE.Group;
+  /** World position of the mast foot. */
+  pos: THREE.Vector3;
+  /** Telescoping upper mast; slides up as the tower deploys. */
+  upper: THREE.Group;
+  /** Turns to face the panels (yaw); a child of upper. */
+  head: THREE.Group;
+  /** Roll-out blankets, scaled 0..1 down from the top bar. */
+  wings: THREE.Group[];
+  /** Status light on the control box. */
+  light: THREE.Mesh;
+  /** The control box the player uses (interactable). */
+  box: THREE.Mesh;
+  stowedY: number;
+  deployedY: number;
+  height: number;
+}
+
+/**
+ * Vertical solar array (after NASA's VSAT concept for the lunar south pole): the Sun
+ * stays near the horizon there, so the panels stand upright on a tall mast and turn
+ * to follow it. The blankets roll down from a top bar, like a window blind.
+ */
 function vsat(height: number) {
   const g = new THREE.Group();
   mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.5, 6), mats.dark, g, [0, 0.25, 0]);
-  mesh(new THREE.CylinderGeometry(0.11, 0.14, height, 12), mats.alu, g, [0, height / 2, 0]);
+  const lowerLen = height * 0.45;
+  mesh(new THREE.CylinderGeometry(0.15, 0.18, lowerLen, 12), mats.alu, g, [0, lowerLen / 2, 0]);
+  mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.25, 12), mats.dark, g, [0, lowerLen, 0]);
+  // Upper mast section (slides out of the lower one)
+  const upperLen = height * 0.55;
+  const upper = new THREE.Group();
+  g.add(upper);
+  mesh(new THREE.CylinderGeometry(0.11, 0.11, upperLen, 12), mats.alu, upper, [0, upperLen / 2, 0]);
+  const stowedY = lowerLen - upperLen + 0.7;
+  const deployedY = lowerLen - 0.4;
+  upper.position.y = stowedY;
+
   const head = new THREE.Group();
-  head.position.y = height * 0.58;
-  g.add(head);
+  head.position.y = upperLen;
+  upper.add(head);
   const w = 2.4;
-  const h = height * 0.62;
+  const h = height * 0.58;
+  const reach = w + 0.16;
+  strut(new THREE.Vector3(-reach, 0, 0), new THREE.Vector3(reach, 0, 0), 0.05, mats.alu, head);
+  mesh(new THREE.BoxGeometry(0.4, 0.35, 0.35), mats.dark, head, [0, 0.05, 0]);
   const pvGeo = new THREE.PlaneGeometry(w, h);
+  pvGeo.translate(0, -h / 2, 0);
   const uv = pvGeo.attributes.uv as THREE.BufferAttribute;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 3, uv.getY(i) * (h / w) * 3);
+  const wings: THREE.Group[] = [];
   for (const s of [-1, 1]) {
-    const blanket = mesh(pvGeo, mats.pv, head, [s * (w / 2 + 0.16), 0, 0.02]);
-    blanket.castShadow = true;
-    const back = mesh(pvGeo, mats.foil, head, [s * (w / 2 + 0.16), 0, -0.01], [0, Math.PI, 0]);
-    back.castShadow = false;
-    // frame
-    strut(new THREE.Vector3(s * 0.16, h / 2, 0), new THREE.Vector3(s * (w + 0.16), h / 2, 0), 0.03, mats.alu, head);
-    strut(new THREE.Vector3(s * 0.16, -h / 2, 0), new THREE.Vector3(s * (w + 0.16), -h / 2, 0), 0.03, mats.alu, head);
-    strut(new THREE.Vector3(s * (w + 0.16), -h / 2, 0), new THREE.Vector3(s * (w + 0.16), h / 2, 0), 0.03, mats.alu, head);
+    const cx = s * (w / 2 + 0.16);
+    // Storage canister the blanket rolls out of
+    mesh(new THREE.CylinderGeometry(0.1, 0.1, w + 0.1, 12), mats.white, head, [cx, -0.05, 0.02], [0, 0, Math.PI / 2]);
+    const wing = new THREE.Group();
+    wing.position.set(cx, -0.12, 0);
+    head.add(wing);
+    mesh(pvGeo, mats.pv, wing, [0, 0, 0.02]);
+    mesh(pvGeo, mats.foil, wing, [0, 0, -0.01], [0, Math.PI, 0]).castShadow = false;
+    // side cables and the weighted bottom bar that pulls the blanket straight
+    strut(new THREE.Vector3(-w / 2, 0, 0), new THREE.Vector3(-w / 2, -h, 0), 0.015, mats.alu, wing);
+    strut(new THREE.Vector3(w / 2, 0, 0), new THREE.Vector3(w / 2, -h, 0), 0.015, mats.alu, wing);
+    strut(new THREE.Vector3(-w / 2, -h, 0), new THREE.Vector3(w / 2, -h, 0), 0.035, mats.alu, wing);
+    wing.scale.y = 0.02;
+    wings.push(wing);
   }
-  mesh(new THREE.BoxGeometry(0.3, 0.4, 0.3), mats.dark, g, [0, height + 0.2, 0]);
-  const beacon = mesh(new THREE.SphereGeometry(0.08, 12, 8), mats.red, g, [0, height + 0.48, 0]);
-  // Face the blankets towards the Sun's azimuth.
-  head.rotation.y = Math.atan2(SUN_DIR.x, SUN_DIR.z);
-  return { group: g, beacon };
+  const beacon = mesh(new THREE.SphereGeometry(0.08, 12, 8), mats.red, head, [0, 0.33, 0]);
+
+  // Control box on a post, facing the way the player walks up (+Z of the group)
+  strut(new THREE.Vector3(0, 0, 1.55), new THREE.Vector3(0, 1.0, 1.55), 0.04, mats.alu, g);
+  const box = mesh(new RoundedBoxGeometry(0.62, 0.46, 0.22, 2, 0.04), mats.white, g, [0, 1.18, 1.55], [-0.25, 0, 0]);
+  mesh(new THREE.PlaneGeometry(0.44, 0.26), mats.cyan, g, [0, 1.21, 1.67], [-0.25, 0, 0]).castShadow = false;
+  const light = mesh(new THREE.SphereGeometry(0.05, 10, 8), mats.amber, g, [0.22, 1.47, 1.55]);
+  tube([new THREE.Vector3(0, 0.6, 1.5), new THREE.Vector3(0, 0.15, 1.1), new THREE.Vector3(0, 0.3, 0.75)], 0.025, mats.rubber, g);
+  return { group: g, beacon, upper, head, wings, light, box, stowedY, deployedY };
 }
 
 function antenna() {
@@ -356,7 +422,7 @@ function lifeSupportUnit() {
 // ---------- outpost ----------
 
 /** Detailed models built in Blender (tools/blender/outpost_assets.py). */
-export type OutpostModels = Record<'hab_module' | 'lab_module' | 'node_module' | 'rover' | 'floodlight' | 'power_unit', THREE.Object3D>;
+export type OutpostModels = Record<'hab_module' | 'lab_module' | 'node_module' | 'rover' | 'floodlight' | 'power_unit' | 'battery_bank', THREE.Object3D>;
 
 function instance(model: THREE.Object3D) {
   const o = model.clone(true);
@@ -435,23 +501,96 @@ export function buildOutpost(models: OutpostModels): Outpost {
   colliders.push({ kind: 'box', center: new THREE.Vector3(bx + 2, by + 1.2, bz + 7.5), half: new THREE.Vector3(2.2, 1.2, 1.2) });
   interactables.push({ id: 'o2', object: o2.panel, label: () => 'p.o2refill' });
 
-  // Vertical solar arrays on higher ground to the east
+  // Power area: the power distribution unit (PDU), its battery bank, terminal and main switch.
+  const pduX = bx + 15;
+  const pduZ = bz - 9;
+  const pduYaw = 0.3;
+  const pduQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, pduYaw, 0));
+  const pduFrame = new THREE.Group();
+  place(pduFrame, pduX, pduZ, pduYaw, by);
+  pduFrame.updateMatrixWorld();
+  const local = (x: number, y: number, z: number) => pduFrame.localToWorld(new THREE.Vector3(x, y, z));
+  const pdu = instance(models.power_unit);
+  pduFrame.add(pdu);
+  colliders.push({ kind: 'box', center: local(0, 1.4, 0), half: new THREE.Vector3(1.4, 1.4, 1.0), quat: pduQuat });
+
+  const bank = instance(models.battery_bank);
+  bank.position.set(-0.4, 0, -2.95);
+  bank.rotation.y = -Math.PI / 2;
+  pduFrame.add(bank);
+  colliders.push({ kind: 'box', center: local(-0.4, 1.0, -2.95), half: new THREE.Vector3(0.85, 1.0, 1.95), quat: pduQuat });
+  const gaugeBack = new THREE.MeshStandardMaterial({ color: 0x0b0f14, roughness: 0.6 });
+  const gauges: THREE.Mesh[] = [];
+  for (let i = 0; i < 4; i++) {
+    // The bank's front faces -X in the PDU frame; its cabinets run along Z.
+    const z = -2.95 + 1.35 - i * 0.9 - 0.18;
+    mesh(new THREE.PlaneGeometry(0.1, 0.62), gaugeBack, pduFrame, [-1.105, 1.0, z], [0, -Math.PI / 2, 0]).castShadow = false;
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.58).translate(0, 0.29, 0), mats.red);
+    bar.position.set(-1.11, 0.71, z);
+    bar.rotation.y = -Math.PI / 2;
+    pduFrame.add(bar);
+    gauges.push(bar);
+  }
+
+  // Power terminal on a post at the west end, facing the habitat
+  strut(new THREE.Vector3(-2.15, 0, 0.55), new THREE.Vector3(-2.15, 1.2, 0.55), 0.06, mats.alu, pduFrame);
+  const pwTerm = mesh(new RoundedBoxGeometry(0.1, 0.55, 0.8, 2, 0.03), mats.dark, pduFrame, [-2.2, 1.42, 0.55], [0, 0, -0.5]);
+  const pwScreen = mesh(new THREE.PlaneGeometry(0.66, 0.42), mats.cyan, pduFrame, [-2.26, 1.45, 0.55]);
+  pwScreen.rotation.set(0, -Math.PI / 2, 0);
+  pwScreen.rotateX(0.5);
+  pwScreen.castShadow = false;
+  interactables.push({ id: 'pw-terminal', object: pwTerm, label: () => 'p.pwTerminal' });
+  colliders.push({ kind: 'cylinder', center: local(-2.15, 0.7, 0.55), halfHeight: 0.7, radius: 0.25 });
+
+  // Main power switch: a breaker box on the PDU's west end with a big lever
+  const busBox = mesh(new RoundedBoxGeometry(0.22, 0.7, 0.6, 2, 0.03), mats.white, pduFrame, [-1.42, 1.05, -0.3]);
+  mesh(new THREE.BoxGeometry(0.02, 0.1, 0.62), mats.hazard, pduFrame, [-1.535, 1.32, -0.3]);
+  const leverPivot = new THREE.Group();
+  leverPivot.position.set(-1.56, 1.0, -0.3);
+  pduFrame.add(leverPivot);
+  mesh(new THREE.BoxGeometry(0.05, 0.38, 0.05), mats.red, leverPivot, [-0.02, 0.17, 0]);
+  mesh(new THREE.BoxGeometry(0.09, 0.07, 0.22), mats.dark, leverPivot, [-0.03, 0.37, 0]);
+  leverPivot.rotation.z = 0.9; // tilted out = OFF; swings down when connected
+  const busLight = mesh(new THREE.SphereGeometry(0.05, 10, 8), mats.red, pduFrame, [-1.54, 1.32, 0.05]);
+  interactables.push({ id: 'pw-bus', object: busBox, label: () => 'p.busOff' });
+
+  // Vertical solar towers on higher ground to the east, control boxes facing the PDU
+  const arrays: VsatRig[] = [];
   for (const [x, z] of [[32, -38], [44, -26], [26, -52]]) {
     const v = vsat(12);
-    place(v.group, x, z);
-    colliders.push({ kind: 'cylinder', center: new THREE.Vector3(x, heightAt(x, z) + 6, z), halfHeight: 6, radius: 0.5 });
+    const yaw = Math.atan2(pduX - x, pduZ - z);
+    place(v.group, x, z, yaw);
+    const fy = heightAt(x, z);
+    colliders.push({ kind: 'cylinder', center: new THREE.Vector3(x, fy + 6, z), halfHeight: 6, radius: 0.5 });
+    const bq = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0));
+    colliders.push({ kind: 'box', center: new THREE.Vector3(0, 0.7, 1.55).applyQuaternion(bq).add(new THREE.Vector3(x, fy, z)), half: new THREE.Vector3(0.32, 0.7, 0.14), quat: bq });
     blinkers.push({ mesh: v.beacon, period: 2.0, phase: x * 0.1 });
-  }
-  // Power cables from arrays to the habitat
-  for (const [x, z] of [[32, -38], [44, -26], [26, -52]]) {
+    const i = arrays.length;
+    v.box.name = 'vsat-' + i;
+    interactables.push({ id: 'vsat-' + i, object: v.box, label: () => 'p.vsat' });
+    arrays.push({ group: v.group, pos: new THREE.Vector3(x, fy, z), upper: v.upper, head: v.head, wings: v.wings, light: v.light, box: v.box, stowedY: v.stowedY, deployedY: v.deployedY, height: 12 });
+    // Power cable from the tower to the PDU
     const pts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 12; i++) {
-      const t = i / 12;
-      const px = THREE.MathUtils.lerp(x, bx + 6.4, t);
-      const pz = THREE.MathUtils.lerp(z, bz - 2, t);
+    const end = local(1.3, 0, 0.3);
+    for (let k = 0; k <= 12; k++) {
+      const t = k / 12;
+      const px = THREE.MathUtils.lerp(x, end.x, t);
+      const pz = THREE.MathUtils.lerp(z, end.z, t);
       pts.push(new THREE.Vector3(px, heightAt(px, pz) + 0.06, pz));
     }
     tube(pts, 0.05, mats.rubber, group).castShadow = false;
+  }
+  // Main feed from the PDU to the habitat node
+  {
+    const pts: THREE.Vector3[] = [];
+    const a = local(-1.3, 0, 0.4);
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10;
+      const px = THREE.MathUtils.lerp(a.x, bx + 6.4, t);
+      const pz = THREE.MathUtils.lerp(a.z, bz - 2, t);
+      pts.push(new THREE.Vector3(px, heightAt(px, pz) + 0.06, pz));
+    }
+    tube(pts, 0.07, mats.rubber, group).castShadow = false;
   }
 
   // Antenna
@@ -468,10 +607,6 @@ export function buildOutpost(models: OutpostModels): Outpost {
   const rover = instance(models.rover);
   place(rover, bx - 9, bz + 12, -0.5, by);
   colliders.push({ kind: 'box', center: new THREE.Vector3(bx - 9, by + 0.9, bz + 12), half: new THREE.Vector3(1.9, 0.9, 1.25), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.5, 0)) });
-
-  const pdu = instance(models.power_unit);
-  place(pdu, bx + 15, bz - 9, 0.3, by);
-  colliders.push({ kind: 'box', center: new THREE.Vector3(bx + 15, by + 1.4, bz - 9), half: new THREE.Vector3(1.4, 1.4, 1.0), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0.3, 0)) });
 
   const floodSpots: { pos: THREE.Vector3; target: THREE.Vector3 }[] = [];
   for (const [x, z] of [[-14, -8], [10, 14], [20, -22]]) {
@@ -540,9 +675,27 @@ export function buildOutpost(models: OutpostModels): Outpost {
   interactables.push({ id: 'ls-terminal', object: ls.term, label: () => 'p.terminal' });
   interactables.push({ id: 'ls-filter', object: ls.filter, label: () => 'p.filterInspect' });
 
+  let floodLamp: THREE.MeshStandardMaterial | null = null;
+  models.floodlight.traverse((c) => {
+    const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+    if (m?.name === 'Lamp') floodLamp = m;
+  });
+
   return {
     group,
     colliders,
+    arrays,
+    floodLamp,
+    power: {
+      pos: new THREE.Vector3(pduX, by, pduZ),
+      terminalPos: local(-2.26, 1.45, 0.55),
+      busPos: local(-1.54, 1.1, -0.3),
+      batteryPos: local(-1.2, 1.0, -2.95),
+      batteryFront: new THREE.Vector3(-1, 0, 0).applyQuaternion(pduQuat),
+      lever: leverPivot,
+      busLight,
+      gauges,
+    },
     interactables,
     lifeSupport: { pos: new THREE.Vector3(lx, by, lz), lights: ls.lights },
     floodSpots,
@@ -556,4 +709,4 @@ export function buildOutpost(models: OutpostModels): Outpost {
   };
 }
 
-export const statusMaterials = { green: mats.green, amber: mats.amber, red: mats.red };
+export const statusMaterials = { green: mats.green, amber: mats.amber, red: mats.red, cyan: mats.cyan };

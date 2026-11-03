@@ -230,3 +230,61 @@ body.lang-my .menu h2, body.lang-my .modal-head h2 { font-family: 'Noto Sans Mya
 body.lang-my .menu h1 span { letter-spacing: 0.04em; text-transform: none; }
 body.lang-my .objective { width: 380px; }
 body.lang-my .objective li { padding: 4px 0; }
+
+/* ---------- Mission 3: power ---------- */
+.clock .ff { margin-top: 4px; color: var(--amber); font-weight: 700; letter-spacing: 0.12em; animation: pulse 0.9s infinite alternate; }
+.base { right: 22px; bottom: 22px; width: 240px; font-size: 14px; }
+.base-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; color: var(--dim); }
+.base-row b { font-family: var(--mono); color: #fff; font-weight: 400; }
+.base .vital { margin: 4px 0; }
+.base-note { display: block; margin-top: 4px; color: var(--amber); font-size: 12px; }
+.gauges.three { grid-template-columns: 1fr 1fr 1fr; }
+.towers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.towers .sys { margin-top: 0; }
+.loads.focus { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(95, 212, 255, 0.35) inset; }
+.load-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; }
+.load {
+  font: inherit; font-size: 14px; display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; color: var(--ink);
+}
+.load:hover:not(:disabled) { border-color: var(--cyan); }
+.load:disabled { cursor: default; }
+.load .sw { font-family: var(--mono); font-size: 11px; min-width: 34px; text-align: center; border-radius: 5px; padding: 2px 4px; }
+.load.on .sw { background: var(--green); color: #04121c; }
+.load.off .sw { background: rgba(255, 255, 255, 0.12); color: var(--dim); }
+.load.off .nm { color: var(--dim); }
+.load em { font-style: normal; font-size: 10px; letter-spacing: 0.08em; color: var(--amber); font-family: var(--mono); }
+.load b { margin-left: auto; font-family: var(--mono); font-weight: 400; }
+.budget { margin: 6px 0; font-weight: 700; font-size: 16px; }
+.budget.good { color: var(--green); }
+.budget.low { color: var(--amber); }
+.budget span { color: var(--dim); font-weight: 400; margin-left: 6px; }
+.loads .confirm { display: block; margin-top: 10px; width: 100%; }
+.side-panel {
+  position: absolute; right: 22px; bottom: 22px; width: min(430px, 92vw); max-height: calc(100vh - 160px); overflow: auto; pointer-events: auto; z-index: 5;
+  background: rgba(10, 18, 28, 0.93); border: 1px solid rgba(95, 212, 255, 0.5); border-radius: 16px; padding: 16px 18px; animation: slidein 0.35s ease-out;
+}
+.side-panel h2 { font-size: 19px; }
+.step-label { font-size: 14px; }
+.aim { display: flex; gap: 12px; align-items: center; margin: 6px 0; }
+.dial { width: 150px; height: 150px; flex: none; }
+.dial-n { fill: var(--dim); font-family: var(--mono); font-size: 13px; }
+.aim-read { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.aim-read span { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+.aim-read b { font-family: var(--mono); font-size: 24px; font-weight: 400; }
+.aim-read b small { font-size: 13px; color: var(--dim); }
+.aim-read b.good { color: var(--green); }
+.aim-read b.low { color: var(--amber); }
+.aim-slider { width: 100%; accent-color: var(--amber); }
+.aim-btns { display: flex; gap: 6px; margin: 4px 0 6px; }
+.aim-btns .btn { flex: 1; }
+.ms-list { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.ms-item {
+  font: inherit; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; padding: 10px 12px;
+  border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: var(--ink);
+}
+.ms-item:hover:not(:disabled) { border-color: var(--cyan); background: rgba(95, 212, 255, 0.08); }
+.ms-item b { font-family: var(--title); font-size: 20px; width: 28px; color: var(--cyan); }
+.ms-item small { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--green); }
+.ms-item.locked { opacity: 0.5; cursor: default; }
+.ms-item.locked small { color: var(--dim); }

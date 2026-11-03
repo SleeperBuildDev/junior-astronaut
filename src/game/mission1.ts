@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { beep, playVoice, sfx } from '../audio/audio';
-import { statusMaterials } from '../world/base';
+import { statusMaterials, type Outpost } from '../world/base';
+import { heightAt, LAYOUT } from '../world/heightfield';
 import { EARTH_DIR } from '../world/sky';
+import type { GameMission, GuideTarget, MissionCtx } from './mission';
 import { mission, pushComm, screen, unlock, type Step } from './state';
 
 const CAPCOM = 'mc';
@@ -28,17 +30,27 @@ const LINES: Record<string, { vo: string; text: string }> = {
 
 const SENSOR_CARDS = ['temperature', 'radiation', 'regolith'];
 
-export class Mission1 {
+export class Mission1 implements GameMission {
+  readonly number = 1;
   private steps: Step[] = STEPS.map((s) => ({ ...s }));
   private scanned = new Set<number>();
   private earthLook = 0;
   /** Called when the mission's last step is done (main.ts plays the ending). */
   onFinished: () => void = () => (screen.value = 'complete');
 
-  constructor(
-    private habitat: THREE.Vector3,
-    private sensorLights: THREE.Mesh[],
-  ) {}
+  private habitat: THREE.Vector3;
+  private sensorLights: THREE.Mesh[];
+  private marks: { habitat: THREE.Vector3; airlock: THREE.Vector3; sensors: THREE.Vector3[] };
+
+  constructor(outpost: Outpost) {
+    this.habitat = outpost.habitatPos;
+    this.sensorLights = outpost.sensorLights;
+    this.marks = {
+      habitat: new THREE.Vector3(LAYOUT.base.x + 2.5, outpost.habitatPos.y + 9.2, LAYOUT.base.z),
+      airlock: outpost.airlockPos.clone().add(new THREE.Vector3(0.3, 2, 0)),
+      sensors: LAYOUT.sensors.map((sp) => new THREE.Vector3(sp.x, heightAt(sp.x, sp.z) + 1.3, sp.z)),
+    };
+  }
 
   begin() {
     this.steps = STEPS.map((s) => ({ ...s }));
@@ -75,7 +87,8 @@ export class Mission1 {
     if (id === 'airlock') setTimeout(() => this.onFinished(), 2500);
   }
 
-  update(dt: number, p: { distance: number; jumps: number; feet: THREE.Vector3; look: THREE.Vector3 }) {
+  update(dt: number, p: MissionCtx) {
+    if (!p.playing) return;
     const cur = this.current?.id;
     if (cur === 'walk' && p.distance > 15) this.complete('walk');
     else if (cur === 'jump' && p.jumps > 0) this.complete('jump');
@@ -115,11 +128,28 @@ export class Mission1 {
     return null;
   }
 
-  sensorLabel(i: number) {
-    return this.scanned.has(i) ? 'p.scanned' : 'p.scan';
+  label(id: string) {
+    if (id.startsWith('sensor-')) return this.scanned.has(Number(id.split('-')[1])) ? 'p.scanned' : 'p.scan';
+    return null;
   }
 
-  isScanned(i: number) {
-    return this.scanned.has(i);
+  guide(p: MissionCtx): GuideTarget | null {
+    switch (this.current?.id) {
+      case 'earth':
+        return { pos: p.eye.clone().addScaledVector(EARTH_DIR, 1000), label: 'wp.earth', sky: true };
+      case 'reach':
+        return { pos: this.marks.habitat, label: 'wp.habitat' };
+      case 'scan': {
+        let best: THREE.Vector3 | null = null;
+        this.marks.sensors.forEach((sp, i) => {
+          if (!this.scanned.has(i) && (!best || sp.distanceToSquared(p.feet) < best.distanceToSquared(p.feet))) best = sp;
+        });
+        return best ? { pos: best, label: 'wp.sensor' } : null;
+      }
+      case 'airlock':
+        return { pos: this.marks.airlock, label: 'wp.airlock' };
+      default:
+        return null;
+    }
   }
 }

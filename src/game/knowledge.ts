@@ -134,6 +134,61 @@ export const CARDS: Record<string, Card> = {
     inGame: 'The habitat oxygen gauge shows the oxygen share of the cabin air.',
     source: 'NASA ECLSS overview',
   },
+  solar: {
+    id: 'solar',
+    title: 'Solar power on the Moon',
+    icon: '☀️',
+    body: [
+      'Solar cells turn sunlight into electricity. The Moon has no clouds and no air, so sunlight arrives at full strength: about 1,361 watts on every square metre that faces the Sun.',
+      'Spacecraft solar cells turn about 30% of that light into electricity; the rest becomes heat. Moon dust on a panel blocks light, so keeping panels clean matters.',
+    ],
+    inGame: 'Dust never builds up on your panels. On the real Moon, crews would have to keep them clean.',
+    source: 'NASA Glenn Research Center: photovoltaics for space; NASA Moon facts',
+  },
+  vsat: {
+    id: 'vsat',
+    title: 'Tall towers for a low Sun',
+    icon: '🗼',
+    body: [
+      'At the lunar south pole the Sun never climbs high. It circles low around the horizon, so panels lying flat would catch almost nothing. Instead the panels stand upright on tall masts, above the shadows of rocks and hills.',
+      'The Sun goes all the way around the horizon about once every 29.5 days, so the towers slowly turn to keep facing it. Angle matters: facing the Sun straight on gives the most power, and turned 60° away gives only half (cos 60° = 0.5).',
+    ],
+    inGame: "Each tower makes up to 10 kW, like NASA's Vertical Solar Array Technology (VSAT) designs. The game's Sun sits higher than the real polar Sun, which stays within about 1.5° of the horizon.",
+    source: 'NASA Space Technology Mission Directorate: Vertical Solar Array Technology (VSAT)',
+  },
+  battery: {
+    id: 'battery',
+    title: 'Storing energy for later',
+    icon: '🔋',
+    body: [
+      'Solar towers only make power while sunlight reaches them. Batteries store extra energy when there is plenty and give it back when there is none.',
+      'Power and energy are different. Power (kilowatts, kW) is how fast energy flows, like water from a tap. Energy (kilowatt-hours, kWh) is how much is stored, like water in a bucket. A 100 kWh battery can run a 5 kW load for 20 hours.',
+    ],
+    inGame: 'Your battery bank stores 100 kWh and never wears out. Real lithium-ion batteries slowly lose capacity and must be kept warm in the cold lunar night.',
+    source: 'NASA Glenn Research Center: energy storage for space missions',
+  },
+  powerbudget: {
+    id: 'powerbudget',
+    title: 'The power budget',
+    icon: '📋',
+    body: [
+      'Engineers list every machine, how much power it needs and how long it runs. This "power budget" shows whether there is enough energy, especially when no new energy is coming in.',
+      'Life support, heating and the radio to Earth come first: the crew cannot survive without them. Floodlights, science work and charging the rover can wait until the Sun returns.',
+    ],
+    inGame: 'Each system is simply on or off. Real outposts can also turn things down partly and plan days ahead.',
+    source: 'NASA Systems Engineering Handbook (technical resource budgets)',
+  },
+  lunarnight: {
+    id: 'lunarnight',
+    title: 'Lunar day and night',
+    icon: '🌗',
+    body: [
+      'The Moon turns once every 29.5 Earth days, so most places get about two weeks of sunlight followed by about two weeks of darkness. In the lunar night the ground cools to about −130 °C.',
+      'Near the south pole the Sun skims the horizon. Some high ridges are sunlit most of the year, while nearby hills and craters leave other places in shadow. That is one reason NASA wants to land there.',
+    ],
+    inGame: 'Here the Sun sinks much faster and lower than it really would, and the dark spell lasts only about 10 hours.',
+    source: 'NASA Moon facts; Lunar Reconnaissance Orbiter illumination studies',
+  },
 };
 
 /** The card in the current UI language (Burmese falls back to English per field). */

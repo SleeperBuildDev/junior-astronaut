@@ -5,7 +5,7 @@ export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 
 export const screen = signal<Screen>('loading');
 export const loadProgress = signal(0);
 /** Which overlay panel is open on top of the game (pauses input). */
-export const panel = signal<null | 'settings' | 'controls' | 'knowledge' | 'credits'>(null);
+export const panel = signal<null | 'settings' | 'controls' | 'knowledge' | 'credits' | 'missions'>(null);
 
 export const suit = signal({ o2: 100, power: 100, health: 100, tempIn: 21, tempOut: -48, dose: 0, light: false });
 
@@ -42,6 +42,16 @@ export function unlock(id: string) {
   knowledge.value = [...knowledge.value, id];
   cardPopup.value = id;
 }
+
+/** The machine screen open on top of the game, if any (the game keeps running behind it). */
+export const terminal = signal<null | 'life' | 'power' | 'array'>(null);
+
+/**
+ * Game seconds per real second. The mission clock normally runs 30x faster than real
+ * time; missions speed it up further for long waits (charging, the dark hours).
+ */
+export const NORMAL_SPEED = 30;
+export const gameSpeed = signal(NORMAL_SPEED);
 
 export const fps = signal(0);
 /** The mission currently loaded (1-based). */

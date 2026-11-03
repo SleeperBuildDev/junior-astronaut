@@ -309,7 +309,10 @@ export type Sfx =
   | 'clunk'
   | 'powerup'
   | 'lamp'
-  | 'panel';
+  | 'panel'
+  | 'servo'
+  | 'breaker'
+  | 'powerdown';
 
 let lastHover = 0;
 
@@ -386,6 +389,24 @@ export function sfx(name: Sfx, strength = 1) {
     case 'lamp':
       note({ type: 'square', freq: 2000, dur: 0.02, gain: 0.02 });
       burst({ type: 'highpass', freq: 5000, dur: 0.05, gain: 0.01 });
+      break;
+    case 'servo':
+      // Deploy motors: a geared whir that rises as the mast extends, felt through the ground.
+      note({ type: 'sawtooth', freq: 110, freqEnd: 190, dur: 4.8, gain: 0.018, attack: 0.4 });
+      note({ type: 'square', freq: 55, freqEnd: 95, dur: 4.8, gain: 0.01, attack: 0.4 });
+      burst({ type: 'bandpass', freq: 700, freqEnd: 1100, q: 2, dur: 4.8, gain: 0.02, attack: 0.4 });
+      note({ freq: 140, freqEnd: 60, dur: 0.3, gain: 0.08, at: 4.9 });
+      break;
+    case 'breaker':
+      // A heavy contactor closing, then the bus energising.
+      note({ freq: 120, freqEnd: 50, dur: 0.2, gain: 0.12 });
+      burst({ type: 'highpass', freq: 2500, dur: 0.08, gain: 0.05 });
+      burst({ type: 'bandpass', freq: 6000, q: 4, dur: 0.05, gain: 0.03, at: 0.05 });
+      note({ type: 'sawtooth', freq: 60, freqEnd: 120, dur: 0.8, gain: 0.02, attack: 0.1, at: 0.15 });
+      break;
+    case 'powerdown':
+      note({ type: 'sawtooth', freq: 320, freqEnd: 60, dur: 1.6, gain: 0.03 });
+      note({ type: 'sine', freq: 640, freqEnd: 120, dur: 1.6, gain: 0.025 });
       break;
   }
 }

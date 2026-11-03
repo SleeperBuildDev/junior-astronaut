@@ -298,5 +298,47 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
     },
   ];
 
-  return { intro, m1End, m2Intro, m2End };
+  const pw = outpost.power;
+  const bat = pw.batteryPos;
+  const t0 = outpost.arrays[0].pos;
+  const t1 = outpost.arrays[1].pos;
+  const m3Intro: Shot[] = [
+    {
+      dur: 8.8,
+      sub: 'cs.m3_intro_1',
+      vo: 'cs_m3_intro_1',
+      // Push in on the battery bank from the south-west, its charge bars glowing red.
+      cam: move(
+        bat.clone().addScaledVector(pw.batteryFront, 4).add(v(0, 1.6, 6)),
+        bat.clone().addScaledVector(pw.batteryFront, 3).add(v(0, 0.3, 1.5)),
+        bat.clone(),
+        bat.clone().add(v(0, -0.1, 0)),
+      ),
+    },
+    {
+      dur: 7.4,
+      sub: 'cs.m3_intro_2',
+      vo: 'cs_m3_intro_2',
+      // A low orbit around a folded solar tower.
+      cam: orbit(t0, 9, 1.2, 2.2, 3.1, 4),
+    },
+  ];
+
+  const m3End: Shot[] = [
+    {
+      dur: 11,
+      sub: 'cs.m3_end',
+      vo: 'cs_m3_end',
+      start: () => sfx('powerup'),
+      cam: (k, cam) => {
+        // From under a tower looking up at its panels, crane back to see all three in the sunlight.
+        const e = ease(k);
+        cam.position.set(t1.x - 4 - e * 26, t1.y + 1.6 + e * 13, t1.z + 5 + e * 22);
+        const look = new THREE.Vector3(t1.x, t1.y + 8, t1.z).lerp(new THREE.Vector3((t0.x + t1.x) / 2, t0.y + 5, (t0.z + t1.z) / 2 - 6), e);
+        cam.lookAt(look);
+      },
+    },
+  ];
+
+  return { intro, m1End, m2Intro, m2End, m3Intro, m3End };
 }

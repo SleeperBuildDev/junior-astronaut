@@ -36,6 +36,19 @@ LINES = {
     'cs_m2_intro_1': "Day two. The outpost is waking up. But the habitat air is thin, and the water tank is running low.",
     'cs_m2_intro_2': "Before the crew can live here, life support must come online.",
     'cs_m2_end': "Oxygen is flowing. Water is being recycled. The habitat can breathe. The outpost is alive.",
+    'm3_01': "Mission three. Life support is running, but only on the lander's batteries, and they are nearly flat. Head to the power unit north-east of the habitat.",
+    'm3_02': "Good. Open the power terminal and check the power system.",
+    'm3_03': "The three solar towers are still folded up from the landing. Walk to each one, deploy it, and turn it to face the Sun.",
+    'm3_04': "Tower one is making power. Did you see the output drop when the panels did not face the Sun straight on? Two more to go.",
+    'm3_05': "All three towers are tracking the Sun. Now go back to the power unit and hold E on the main switch to connect them to the outpost.",
+    'm3_06': "Power connected. The towers are charging the batteries. We have sped up time so you can watch. Charge them to sixty percent.",
+    'm3_07': "Batteries at sixty percent. Heads up. The Sun will soon drop below the horizon for about ten hours. No sunlight means no solar power. Open the power terminal and make a plan so the batteries last until sunrise.",
+    'm3_08': "Good plan. Only the systems we need stay on. Here comes the dark. Press F for your helmet lamp.",
+    'm3_09': "Sunrise! The towers are tracking the Sun again and the batteries are recharging. Mission three complete. The outpost has its own power now.",
+    'm3_10': "Tower locked on and tracking the Sun. Keep going.",
+    'cs_m3_intro_1': "Day three. The air is good and the water is clean. But the outpost is running on the lander's batteries, and they are almost empty.",
+    'cs_m3_intro_2': "On the ridge, three solar towers stand folded, still packed up from the landing. Today they must wake up.",
+    'cs_m3_end': "The Sun climbs back over the horizon. Three towers turn to meet it. For the first time, the outpost makes its own power.",
 }
 
 k = Kokoro(MODEL, VOICES)

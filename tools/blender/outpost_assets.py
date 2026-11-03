@@ -315,7 +315,40 @@ def power_unit(M):
         tube([(1.3, y, 0.4), (1.7, y, 0.15), (2.1, y, 0.05)], 0.05, M['rubber'])
 
 
+def battery_bank(M):
+    """Battery storage: four insulated lithium-ion cabinets on a skid, with radiator fins
+    on top (batteries must be kept warm at night and cool while charging) and cable trays.
+    The front faces -Y (glTF +Z); the game adds glowing charge bars on each door."""
+    box((3.9, 1.7, 0.22), (0, 0, 0.11), M['dark'], bevel=0.03)
+    for x in (-1.75, 1.75):
+        for y in (-0.7, 0.7):
+            cyl(0.1, 0.1, (x, y, 0.05), M['dark'], verts=12)
+    for i in range(4):
+        x = -1.35 + i * 0.9
+        box((0.82, 1.3, 1.55), (x, 0, 1.0), M['white'], bevel=0.035)
+        # door with a recessed frame and a handle
+        box((0.66, 0.03, 1.32), (x, -0.66, 1.0), M['panel'], bevel=0.01)
+        box((0.04, 0.05, 0.3), (x + 0.26, -0.69, 1.05), M['alu'], bevel=0.008)
+        # cell-module rows behind a vent grille
+        for k in range(5):
+            box((0.5, 0.02, 0.03), (x - 0.05, -0.68, 0.45 + k * 0.08), M['seam'])
+        # gold thermal blanket on the sides of the end cabinets
+        if i in (0, 3):
+            box((0.02, 1.2, 1.4), (x + (-0.42 if i == 0 else 0.42), 0, 1.0), M['foil'])
+        # radiator fins on the roof
+        for f in range(5):
+            box((0.7, 0.03, 0.18), (x, -0.5 + f * 0.25, 1.88), M['radiator'], bevel=0.004)
+        box((0.78, 1.2, 0.04), (x, 0, 1.79), M['alu'])
+    # cable tray along the back and a conduit to the power unit
+    box((3.6, 0.22, 0.12), (0, 0.78, 0.5), M['alu'], bevel=0.01)
+    for y in (0.72, 0.84):
+        tube([(1.8, y, 0.5), (2.2, y, 0.35), (2.6, y, 0.08)], 0.04, M['rubber'])
+    # warning placard
+    box((0.5, 0.02, 0.18), (-1.35, -0.68, 1.62), M['hazard'])
+
+
 ASSETS = {
+    'battery_bank': battery_bank,
     'hab_module': lambda M: habitat_module(M, 9.0, 2.1, lab=False),
     'lab_module': lambda M: habitat_module(M, 8.0, 1.9, lab=True),
     'node_module': node_module,
