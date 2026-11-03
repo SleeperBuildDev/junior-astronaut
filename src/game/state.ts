@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 
-export type Screen = 'loading' | 'menu' | 'briefing' | 'playing' | 'paused' | 'complete';
+export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 'paused' | 'complete';
 
 export const screen = signal<Screen>('loading');
 export const loadProgress = signal(0);
@@ -50,3 +50,6 @@ export const missionNumber = signal(1);
 export const holdProgress = signal<number | null>(null);
 /** Screen-space guide marker for the current objective (computed every frame in main.ts). */
 export const waypoint = signal<{ x: number; y: number; onScreen: boolean; angle: number; dist: number | null; label: string } | null>(null);
+
+/** What the cutscene overlay shows: a subtitle key and an optional big location caption. */
+export const cinema = signal<{ sub: string | null; caption: string | null }>({ sub: null, caption: null });

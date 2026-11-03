@@ -6,6 +6,7 @@ import { cardFor, CARDS } from '../game/knowledge';
 import { life, O2_STEPS, o2Step, SAFE_O2, startWater, terminalOpen, type SysState } from '../game/lifesupport';
 import {
   cardPopup,
+  cinema,
   clock,
   comms,
   fps,
@@ -31,6 +32,7 @@ export interface Actions {
   toMenu: () => void;
   next: () => void;
   closeTerminal: () => void;
+  skipCutscene: () => void;
   setQuality: (q: Quality) => void;
 }
 
@@ -515,8 +517,8 @@ function Briefing({ actions }: { actions: Actions }) {
   return (
     <div class="menu briefing">
       <div class="menu-inner wide">
-        <h2>{t('briefing.m1.title')}</h2>
-        <p>{t('briefing.m1.text')}</p>
+        <h2>{t(`briefing.m${missionNumber.value}.title`)}</h2>
+        <p>{t(`briefing.m${missionNumber.value}.text`)}</p>
         <ControlsCard />
         <button class="btn primary" onClick={actions.resume}>
           {t('briefing.begin')}
@@ -598,6 +600,25 @@ function Complete({ actions }: { actions: Actions }) {
   );
 }
 
+/** Letterbox bars, a location caption and subtitles over the cutscene camera. */
+function Cinema({ actions }: { actions: Actions }) {
+  const c = cinema.value;
+  return (
+    <div class="cinema">
+      <div class="cine-bar top" />
+      <div class="cine-bar bottom">{c.sub ? <p class="cine-sub" key={c.sub}>{t(c.sub)}</p> : null}</div>
+      {c.caption ? (
+        <div class="cine-caption" key={c.caption}>
+          {t(c.caption)}
+        </div>
+      ) : null}
+      <button class="btn small cine-skip" onClick={actions.skipCutscene}>
+        {t('cs.skip')} ▶▶ <small>{t('cs.skipHint')}</small>
+      </button>
+    </div>
+  );
+}
+
 function Loading() {
   return (
     <div class="menu loading">
@@ -641,6 +662,7 @@ export function App({ actions }: { actions: Actions }) {
     <>
       {(sc === 'playing' || sc === 'paused') && <Hud />}
       {sc === 'loading' && <Loading />}
+      {sc === 'cutscene' && <Cinema actions={actions} />}
       {sc === 'menu' && <Menu actions={actions} />}
       {sc === 'briefing' && <Briefing actions={actions} />}
       {sc === 'paused' && !panel.value && <Paused actions={actions} />}

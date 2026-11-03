@@ -28,6 +28,14 @@ LINES = {
     'm2_06': "New filter installed. Now start water recovery from the terminal.",
     'm2_07': "Water recovery online. Every drop gets cleaned and used again. Watch the habitat oxygen rise to a safe level.",
     'm2_08': "Habitat air is safe to breathe and the water loop is closed. Mission two complete. Life support is go.",
+    'cs_intro_1': "The lunar south pole. Day one of a thirty day mission.",
+    'cs_intro_2': "Four days after leaving Earth, the crew's lander begins its final descent.",
+    'cs_intro_3': "Touchdown. Moon dust sprays out in perfect arcs. With no air on the Moon, nothing slows it down.",
+    'cs_intro_4': "Junior Astronaut, your first steps on the Moon are waiting.",
+    'cs_m1_end': "The airlock seals behind you. Outside, your first footprints will stay in the dust for millions of years. There is no wind to blow them away.",
+    'cs_m2_intro_1': "Day two. The outpost is waking up. But the habitat air is thin, and the water tank is running low.",
+    'cs_m2_intro_2': "Before the crew can live here, life support must come online.",
+    'cs_m2_end': "Oxygen is flowing. Water is being recycled. The habitat can breathe. The outpost is alive.",
 }
 
 k = Kokoro(MODEL, VOICES)
@@ -37,7 +45,9 @@ only = sys.argv[1:]
 for key, text in LINES.items():
     if only and key not in only:
         continue
-    audio, sr = k.create(text, voice='am_michael', speed=0.95, lang='en-us')
+    # Cutscene narration uses a different, calmer voice than Mission Control.
+    narrator = key.startswith('cs_')
+    audio, sr = k.create(text, voice='af_heart' if narrator else 'am_michael', speed=0.92 if narrator else 0.95, lang='en-us')
     with tempfile.TemporaryDirectory() as tmp:
         wav = os.path.join(tmp, key + '.wav')
         sf.write(wav, audio, sr)

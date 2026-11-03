@@ -116,20 +116,44 @@ function tone(freq: number, start: number, dur: number, gain: number, dest: Audi
  * tones (2525 Hz to open, 2475 Hz to close, 250 ms each). Lines queue up so they
  * never talk over each other.
  */
-export function playVoice(id: string) {
+let voiceGen = 0;
+let currentVoice: AudioBufferSourceNode | null = null;
+
+/** Cutscene narration: a clean voice (no radio filter, no beeps). */
+export function playNarration(id: string) {
+  return playVoice(id, false);
+}
+
+/** Stops the line that is playing and drops any queued lines (e.g. when a cutscene is skipped). */
+export function stopVoices() {
+  voiceGen++;
+  try {
+    currentVoice?.stop();
+  } catch {
+    // already stopped
+  }
+  currentVoice = null;
+  voiceQueue = Promise.resolve();
+}
+
+export function playVoice(id: string, radio = true) {
   if (!ctx) return Promise.resolve();
   const url = `./assets/audio/vo/${id}.mp3`;
+  const gen = voiceGen;
   voiceQueue = voiceQueue.then(async () => {
+    if (gen !== voiceGen) return;
     try {
       const buf = await load(url);
+      if (gen !== voiceGen) return;
       const t0 = ctx!.currentTime + 0.05;
-      tone(2525, t0, 0.25, 0.08, master);
+      if (radio) tone(2525, t0, 0.25, 0.08, master);
       const src = ctx!.createBufferSource();
       src.buffer = buf;
-      src.connect(radioBus);
-      src.start(t0 + 0.32);
-      tone(2475, t0 + 0.4 + buf.duration, 0.25, 0.08, master);
-      await new Promise((r) => setTimeout(r, (buf.duration + 0.9) * 1000));
+      src.connect(radio ? radioBus : master);
+      src.start(t0 + (radio ? 0.32 : 0));
+      currentVoice = src;
+      if (radio) tone(2475, t0 + 0.4 + buf.duration, 0.25, 0.08, master);
+      await new Promise((r) => setTimeout(r, (buf.duration + (radio ? 0.9 : 0.3)) * 1000));
     } catch {
       // Missing audio should never block the game.
     }

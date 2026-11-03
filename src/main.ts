@@ -12,6 +12,7 @@ import { audioState, beep, playVoice, setExertion, setHum, sfx, startAudio, thud
 import { createRenderer, Pipeline, PRESETS } from './engine/renderer';
 import { settings, updateSettings, type Quality } from './engine/settings';
 import { life, resetLife, simulateLife, terminalOpen } from './game/lifesupport';
+import { buildCutscenes, CutscenePlayer, type Shot } from './game/cutscenes';
 import { Mission1 } from './game/mission1';
 import { FILTER_HOLD_SECONDS, Mission2 } from './game/mission2';
 import { cardPopup, clock, comms, fps, heading, holdProgress, knowledge, loadProgress, missionNumber, panel, prompt, pushComm, screen, suit, warning, waypoint } from './game/state';
@@ -57,12 +58,25 @@ async function boot() {
   let mission1: Mission1 | null = null;
   let mission2: Mission2 | null = null;
   let started = false;
+  const cut = new CutscenePlayer();
+  let scenes: ReturnType<typeof buildCutscenes> | null = null;
+  function playCut(shots: Shot[] | undefined, done: () => void) {
+    if (!shots) return done();
+    input.enabled = false;
+    input.unlock();
+    prompt.value = null;
+    screen.value = 'cutscene';
+    cut.play(shots, done);
+  }
   let lowO2Warned = false;
 
   const actions: Actions = {
     start() {
       startAudio();
-      screen.value = 'briefing';
+      playCut(scenes?.intro, () => (screen.value = 'briefing'));
+    },
+    skipCutscene() {
+      cut.skip();
     },
     async resume() {
       startAudio();
@@ -80,7 +94,7 @@ async function boot() {
     next() {
       missionNumber.value = 2;
       resetMission();
-      void actions.resume();
+      playCut(scenes?.m2Intro, () => (screen.value = 'briefing'));
     },
     closeTerminal() {
       terminalOpen.value = false;
@@ -199,6 +213,16 @@ async function boot() {
   };
   mission1 = new Mission1(outpost.habitatPos, outpost.sensorLights);
   mission2 = new Mission2(outpost.lifeSupport.pos, outpost.lifeSupport.lights);
+  scenes = buildCutscenes(scene, outpost, { pos: startPos, yaw: startYaw });
+  mission1.onFinished = () => playCut(scenes!.m1End, () => (screen.value = 'complete'));
+  mission2.onFinished = () => playCut(scenes!.m2End, () => (screen.value = 'complete'));
+  // Space, Enter or Esc skips a cutscene.
+  addEventListener('keydown', (e) => {
+    if (screen.value === 'cutscene' && ['Space', 'Enter', 'Escape'].includes(e.code)) {
+      e.preventDefault();
+      cut.skip();
+    }
+  });
   // Mission 2 starts just outside the airlock, as if the crew had rested inside.
   const m2Start = new THREE.Vector3(LAYOUT.base.x - 9, 0, LAYOUT.base.z + 4);
   m2Start.y = heightAt(m2Start.x, m2Start.z);
@@ -377,7 +401,8 @@ async function boot() {
     const inMission = screen.value === 'playing' && !panel.value;
     const playing = inMission && !terminalOpen.value;
 
-    if (player) {
+    if (screen.value === 'cutscene') cut.update(dt, camera);
+    else if (player) {
       player.update(dt, playing);
       if (playing) {
         const holdId = missionNumber.value === 2 ? mission2!.holdId : null;
@@ -506,7 +531,13 @@ async function boot() {
       __qa: {
         ready: true,
         start: () => actions.start(),
-        play: () => actions.resume(),
+        play: () => {
+          cut.skip();
+          return actions.resume();
+        },
+        skip: () => cut.skip(),
+        cut: (name: 'intro' | 'm1End' | 'm2Intro' | 'm2End') => playCut(scenes![name], () => (screen.value = 'menu')),
+        cutscene: () => screen.value === 'cutscene',
         teleport: (x: number, z: number, yaw = 0, pitch = 0) => {
           player!.teleport(new THREE.Vector3(x, heightAt(x, z), z), yaw);
           player!.pitch = pitch;

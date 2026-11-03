@@ -55,7 +55,10 @@ console.log('airlock prompt:', await q(() => document.querySelector('.prompt')?.
 await q(() => window.__qa.key('KeyE', 120));
 await wait(1200);
 await shot('6_airlock');
-await wait(7000);
+await wait(3500);
+console.log('ending cutscene playing:', await q(() => window.__qa.cutscene()));
+await q(() => window.__qa.skip());
+await wait(800);
 await shot('7_complete');
 console.log('screen:', await q(() => window.__qa.state().screen), 'done steps:', await steps());
 console.log('errors:', errors.length ? errors : 'none');

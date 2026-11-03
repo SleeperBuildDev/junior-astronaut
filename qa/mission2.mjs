@@ -16,6 +16,9 @@ const promptText = () => q(() => document.querySelector('.prompt')?.textContent 
 
 await q(() => window.__qa.next());
 await wait(1500);
+console.log('intro cutscene playing:', await q(() => window.__qa.cutscene()));
+await q(async () => { await window.__qa.play(); });
+await wait(800);
 await shot('0_start');
 await q(() => window.__qa.teleport(12.8, -14.4, 0, -0.08));
 await wait(800);
@@ -55,6 +58,9 @@ await page.click('.terminal >> text=Start water recovery', { timeout: 5000 });
 await wait(9000);
 await shot('3_terminal_water');
 await wait(12000);
+console.log('ending cutscene playing:', await q(() => window.__qa.cutscene()));
+await q(() => window.__qa.skip());
+await wait(800);
 console.log('final state:', JSON.stringify(await q(() => ({ s: window.__qa.state().screen, t: window.__qa.state().terminal }))));
 await shot('4_complete');
 console.log('errors:', errors.length ? errors : 'none');

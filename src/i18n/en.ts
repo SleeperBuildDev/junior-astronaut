@@ -1,6 +1,19 @@
 // English UI text. Keys are shared with my.ts (Burmese).
 export const en: Record<string, string> = {
   mc: 'Mission Control',
+  'cs.skip': 'Skip',
+  'cs.skipHint': 'Space to skip',
+  'cs.caption.site': 'LUNAR SOUTH POLE · CONNECTING RIDGE',
+  'cs.intro_1': 'The lunar south pole. Day one of a thirty-day mission.',
+  'cs.intro_2': "Four days after leaving Earth, the crew's lander begins its final descent.",
+  'cs.intro_3': 'Touchdown. Moon dust sprays out in perfect arcs. With no air on the Moon, nothing slows it down.',
+  'cs.intro_4': 'Junior Astronaut, your first steps on the Moon are waiting.',
+  'cs.m1_end': 'The airlock seals behind you. Outside, your first footprints will stay in the dust for millions of years. There is no wind to blow them away.',
+  'cs.m2_intro_1': 'Day two. The outpost is waking up. But the habitat air is thin, and the water tank is running low.',
+  'cs.m2_intro_2': 'Before the crew can live here, life support must come online.',
+  'cs.m2_end': 'Oxygen is flowing. Water is being recycled. The habitat can breathe. The outpost is alive.',
+  'briefing.m2.title': 'Mission 2 · Life Support Activation',
+  'briefing.m2.text': 'The habitat needs breathable air and clean water before the crew can live inside. Start the oxygen generator, fix the water recycler and bring the cabin air up to a safe level.',
 
   'menu.subtitle': 'Lunar Survival Mission',
   'menu.tagline': "Build and run a research outpost at the Moon's south pole. Keep your crew alive for 30 days.",

@@ -31,6 +31,8 @@ export const FILTER_HOLD_SECONDS = 2.5;
 
 export class Mission2 {
   readonly number = 2;
+  /** Called when the mission's last step is done (main.ts plays the ending). */
+  onFinished: () => void = () => (screen.value = 'complete');
   private steps: Step[] = STEPS.map((s) => ({ ...s }));
 
   constructor(
@@ -96,8 +98,8 @@ export class Mission2 {
     if (id === 'air')
       setTimeout(() => {
         terminalOpen.value = false;
-        screen.value = 'complete';
-      }, 7000);
+        this.onFinished();
+      }, 5000);
   }
 
   update(_dt: number, p: { feet: THREE.Vector3 }) {

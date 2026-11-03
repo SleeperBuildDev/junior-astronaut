@@ -25,6 +25,8 @@ export interface Outpost {
   habitatPos: THREE.Vector3;
   lifeSupport: { pos: THREE.Vector3; lights: { o2: THREE.Mesh; water: THREE.Mesh; co2: THREE.Mesh } };
   floodSpots: { pos: THREE.Vector3; target: THREE.Vector3 }[];
+  lander: THREE.Object3D;
+  airlockLight: THREE.Mesh;
 }
 
 // ---------- procedural textures ----------
@@ -507,7 +509,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     mk.position.set(LAYOUT.lander.x + Math.cos(a) * 11, ly + 0.03, LAYOUT.lander.z + Math.sin(a) * 11);
     group.add(mk);
   }
-  place(lander(), LAYOUT.lander.x, LAYOUT.lander.z, 0, ly);
+  const landerObj = place(lander(), LAYOUT.lander.x, LAYOUT.lander.z, 0, ly);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
     const px = LAYOUT.lander.x + Math.cos(a) * 10.2;
@@ -544,6 +546,8 @@ export function buildOutpost(models: OutpostModels): Outpost {
     interactables,
     lifeSupport: { pos: new THREE.Vector3(lx, by, lz), lights: ls.lights },
     floodSpots,
+    lander: landerObj,
+    airlockLight: lock.light,
     blinkers,
     sensorLights,
     airlockPos: new THREE.Vector3(bx - 7.1, by, bz),

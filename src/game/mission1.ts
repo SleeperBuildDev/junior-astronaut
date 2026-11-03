@@ -32,6 +32,8 @@ export class Mission1 {
   private steps: Step[] = STEPS.map((s) => ({ ...s }));
   private scanned = new Set<number>();
   private earthLook = 0;
+  /** Called when the mission's last step is done (main.ts plays the ending). */
+  onFinished: () => void = () => (screen.value = 'complete');
 
   constructor(
     private habitat: THREE.Vector3,
@@ -70,7 +72,7 @@ export class Mission1 {
     if (id === 'earth') unlock('earth');
     if (id === 'reach') unlock('southpole');
     this.say(id as keyof typeof LINES);
-    if (id === 'airlock') setTimeout(() => (screen.value = 'complete'), 6500);
+    if (id === 'airlock') setTimeout(() => this.onFinished(), 2500);
   }
 
   update(dt: number, p: { distance: number; jumps: number; feet: THREE.Vector3; look: THREE.Vector3 }) {
