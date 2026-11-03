@@ -19,6 +19,9 @@ import { Mission2 } from './game/mission2';
 import { Mission3 } from './game/mission3';
 import { Mission4 } from './game/mission4';
 import { Mission5 } from './game/mission5';
+import { Mission6 } from './game/mission6';
+import { crew } from './game/crew';
+import { BERMS, rad, radiationDone, resetRadiation } from './game/radiation';
 import { greenhouse, greenhouseDone, resetGreenhouse } from './game/greenhouse';
 import { resetConstruction } from './game/construction';
 import { resetCrew } from './game/crew';
@@ -230,6 +233,7 @@ async function boot() {
   // HAB-2 (none before Mission 4, packed, then inflated) and the greenhouse (once assembled).
   const setHab2Collider = dynamicCollider();
   const setGhCollider = dynamicCollider();
+  const bermColliders = Object.fromEntries(BERMS.map((b) => [b, dynamicCollider()])) as Record<(typeof BERMS)[number], ReturnType<typeof dynamicCollider>>;
   const startPos = new THREE.Vector3(LAYOUT.lander.x - 3, 0, LAYOUT.lander.z - 6);
   startPos.y = heightAt(startPos.x, startPos.z);
   const startYaw = Math.atan2(-(LAYOUT.base.x - startPos.x), -(LAYOUT.base.z - startPos.z));
@@ -251,10 +255,13 @@ async function boot() {
   registry.set(1, { m: new Mission1(outpost), spawn: { pos: startPos, yaw: startYaw }, intro: scenes.intro, ending: scenes.m1End });
   registry.set(2, { m: new Mission2(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.lifeSupport.pos), intro: scenes.m2Intro, ending: scenes.m2End });
   registry.set(3, { m: new Mission3(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m3Intro, ending: scenes.m3End });
+  registry.set(6, { m: new Mission6(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.radiation.monitorPos), intro: scenes.m6Intro, ending: scenes.m6End, day: 14 });
   registry.set(5, { m: new Mission5(outpost), spawn: spawnAt(LAYOUT.base.x - 7, LAYOUT.base.z + 5.5, outpost.hab2.buildTerminalPos), intro: scenes.m5Intro, ending: scenes.m5End });
   registry.set(4, { m: new Mission4(outpost), spawn: spawnAt(LAYOUT.base.x - 7, LAYOUT.base.z + 5.5, outpost.hab2.buildTerminalPos), intro: scenes.m4Intro, ending: scenes.m4End });
   for (const [n, e] of registry)
     e.m.onFinished = () => {
+      panel.value = null;
+      terminal.value = null;
       missionDone(n);
       playCut(e.ending, () => (screen.value = 'complete'));
     };
@@ -290,6 +297,8 @@ async function boot() {
       resetConstruction(n === 5 ? 6 : 8, n === 5 ? ['hab'] : []);
     }
     resetCrew(n);
+    if (n >= 7) radiationDone();
+    else resetRadiation();
     // The packed module only arrives on its pad for Mission 4.
     const h2 = outpost.hab2;
     h2.shell.visible = n >= 4;
@@ -369,6 +378,8 @@ async function boot() {
     }
   }
   let holdTime = 0;
+  /** Visible all the way up the scene graph. */
+  const shown = (o: THREE.Object3D | null): boolean => !o || (o.visible && shown(o.parent));
 
   // ---------- guidance: where to go next ----------
   const ctx = (): MissionCtx => ({
@@ -454,9 +465,9 @@ async function boot() {
       player.update(dt, playing);
       if (playing) {
         const m = current().m;
-        const holdId = m.holdId ?? null;
         const holdSecs = m.holdSeconds ?? 2.5;
-        if (focused && holdId && focused.id === holdId) {
+        const holdId = focused && (m.canHold ? m.canHold(focused.id) : focused.id === m.holdId) ? focused.id : null;
+        if (focused && holdId) {
           // Hold E to do a repair: keep looking at the part while holding the key.
           input.pressed('KeyE');
           const before = holdTime;
@@ -492,7 +503,7 @@ async function boot() {
         const hit = ray.intersectObjects(targets, false)[0];
         focused = hit ? (byObject.get(hit.object) ?? null) : null;
         // Ignore things not in use yet: before their mission, or hidden (raycasts still hit hidden meshes).
-        if (focused && ((focused.minMission ?? 0) > missionNumber.value || !focused.object.visible)) focused = null;
+        if (focused && ((focused.minMission ?? 0) > missionNumber.value || !shown(focused.object))) focused = null;
         prompt.value = focused ? labelFor(focused) : null;
 
         simulateSuit(dt);
@@ -517,6 +528,7 @@ async function boot() {
     syncPower();
     syncHab2();
     syncGreenhouse();
+    syncRadiation();
     updateGuide(t / 1000);
     // Sunlight, ground bounce and reflections all fade when the Sun goes below the horizon.
     const day = sunlight();
@@ -605,6 +617,33 @@ async function boot() {
     setHab2Collider(!rig.shell.visible ? null : h.inflate >= 1 ? rig.fullCollider : rig.packedCollider);
   }
 
+  // ---------- radiation visuals: berms rising, survey tripods, mover markers ----------
+  function syncRadiation() {
+    const r = rad.value;
+    const rig = outpost.radiation;
+    const n = missionNumber.value;
+    for (const b of BERMS) {
+      const h = r.berms[b];
+      const parts = rig.berms[b];
+      parts.mesh.visible = h > 0;
+      parts.mesh.scale.y = Math.max(0.02, towerEase(h) * 1.25);
+      parts.marker.visible = n === 6;
+      parts.light.material = h >= 1 ? statusMaterials.green : r.piling === b ? statusMaterials.cyan : statusMaterials.amber;
+      // Wait until the player has stepped off the spot before the wall becomes solid.
+      const c = parts.collider as { center: THREE.Vector3; half: THREE.Vector3 };
+      const f = player!.feet;
+      const inside = Math.abs(f.x - c.center.x) < c.half.x + 0.4 && Math.abs(f.z - c.center.z) < c.half.z + 0.4;
+      if (h < 1) bermColliders[b](null);
+      else if (!inside) bermColliders[b](parts.collider);
+    }
+    // Survey tripods are only out during Mission 6's survey (the berms later bury that ground).
+    const surveying = n === 6 && BERMS.every((b) => r.berms[b] === 0);
+    for (const id of ['hab1', 'hab2', 'gh'] as const) {
+      rig.survey[id].group.visible = surveying;
+      rig.survey[id].light.material = r.scans.includes(id) ? statusMaterials.green : statusMaterials.cyan;
+    }
+  }
+
   // ---------- greenhouse visuals: assembly and grow lights ----------
   function syncGreenhouse() {
     const g = greenhouse.value;
@@ -679,6 +718,8 @@ async function boot() {
         power: () => ({ ...power.value, sunYaw: sunYaw() }),
         habitat: () => habitat.value,
         greenhouse: () => greenhouse.value,
+        rad: () => rad.value,
+        crew: () => crew.value,
         speed: () => gameSpeed.value,
         progress: () => progress.value,
         cutscene: () => screen.value === 'cutscene',

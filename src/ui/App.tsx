@@ -7,7 +7,8 @@ import { life, O2_STEPS, o2Step, SAFE_O2, startWater, type SysState } from '../g
 import { kwOf, aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState } from '../game/power';
 import { MISSION_COUNT, progress } from '../game/save';
 import { blockers, build, built, FACILITIES, kits, type FacilityId } from '../game/construction';
-import { CREW, crew } from '../game/crew';
+import { CREW, crew, sendToShelter } from '../game/crew';
+import { BERMS, bermsDone, rad, SHIELDED_MSV_DAY, STORM_HOURS, STORM_OUTSIDE_MSV_H, STORM_SHELTER_MSV_H, SURFACE_MSV_DAY, SURVEY, type SurveyId } from '../game/radiation';
 import { adjustPh, chooseLight, CROPS, fillTank, greenhouse, growth, microGrowth, LIGHT_CYCLES, MICRO_DAYS, PH_OK, plant, TANK_LITRES, toggleTray, TRAYS, trayProblem, type CropId } from '../game/greenhouse';
 import { choosePressure, COMFORT, connectLines, fillWaterWalls, habitat, heatersOn, installBeds, nudgeTemp, PRESSURES, WATER_WALL_LITRES } from '../game/habitat';
 import {
@@ -236,6 +237,7 @@ function Hud() {
         </div>
       ) : null}
       {warning.value ? <div class="warning">⚠ {t(warning.value)}</div> : null}
+      {missionNumber.value === 6 ? <StormBanner /> : null}
       {fps.value ? <div class="fps">{fps.value} fps</div> : null}
     </div>
   );
@@ -270,6 +272,19 @@ function BasePanel() {
         </>
       ) : null}
       {!p.bus ? <small class="base-note">{t('hud.busOff')}</small> : p.sun < 0.05 ? <small class="base-note">{t('hud.dark')}</small> : null}
+    </div>
+  );
+}
+
+const mmss = (secs: number) => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
+
+/** Solar storm countdown, shown until you are inside. */
+function StormBanner() {
+  const r = rad.value;
+  if (r.sheltered || (r.weather !== 'warning' && r.weather !== 'storm')) return null;
+  return (
+    <div class={`storm-banner ${r.weather}`}>
+      ☢ {r.weather === 'warning' ? t('rad.banner.warning', { t: mmss(r.countdown) }) : t('rad.banner.storm')}
     </div>
   );
 }
@@ -905,9 +920,135 @@ function GreenhouseTerminal({ actions }: { actions: Actions }) {
   );
 }
 
+function RadTerminal({ actions }: { actions: Actions }) {
+  const r = rad.value;
+  const wx = r.weather;
+  const shielded = bermsDone();
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal rad-term">
+        <div class="modal-head">
+          <h2>{t('rt.title')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <div class="gauges three">
+          <div class="gauge">
+            <span>☢ {t('rt.surface')}</span>
+            <b class="low">{SURFACE_MSV_DAY.toFixed(2)}</b>
+            <small>{t('rt.perDay')}</small>
+          </div>
+          <div class="gauge">
+            <span>🧑‍🚀 {t('rt.yourDose')}</span>
+            <b>{suit.value.dose.toFixed(2)} mSv</b>
+            <small>{t('rt.limit')}</small>
+          </div>
+          <div class="gauge">
+            <span>☀ {t('rt.weather')}</span>
+            <b class={wx === 'quiet' || wx === 'clear' ? 'good' : 'low'}>{t('rt.wx.' + wx)}</b>
+            <small>{wx === 'warning' ? t('rt.arrives', { t: mmss(r.countdown) }) : t('rt.wxNote')}</small>
+          </div>
+        </div>
+        <div class="sys">
+          <div class="sys-head">
+            <b>{t('rt.survey')}</b>
+            <span class="sys-state">
+              {num(r.scans.length)}/{num(3)}
+            </span>
+          </div>
+          <div class="rad-rows">
+            <div class="rad-row">
+              <span>{t('rt.outside')}</span>
+              <div class="bar">
+                <i style={{ width: '100%' }} />
+              </div>
+              <b>{SURFACE_MSV_DAY.toFixed(2)}</b>
+            </div>
+            {(['hab1', 'hab2', 'gh'] as SurveyId[]).map((id) => {
+              const done = r.scans.includes(id);
+              const v = id === 'hab2' && shielded ? SHIELDED_MSV_DAY : SURVEY[id];
+              return (
+                <div class={`rad-row ${done ? '' : 'pending'}`}>
+                  <span>{t('rt.at.' + id)}</span>
+                  <div class="bar">
+                    <i style={{ width: done ? `${(v / SURFACE_MSV_DAY) * 100}%` : '0%' }} />
+                  </div>
+                  <b>{done ? v.toFixed(2) : '—'}</b>
+                </div>
+              );
+            })}
+          </div>
+          <small>{shielded ? t('rt.shieldedNote') : t('rt.surveyNote')}</small>
+        </div>
+        <div class="sys">
+          <div class="sys-head">
+            <b>{t('rt.berms')}</b>
+            <span class="sys-state">
+              {num(BERMS.filter((b) => r.berms[b] >= 1).length)}/{num(3)}
+            </span>
+          </div>
+          <small>{t('rt.bermNote')}</small>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShelterScreen({ actions }: { actions: Actions }) {
+  const r = rad.value;
+  const hours = r.storm * STORM_HOURS;
+  const inside = hours * STORM_SHELTER_MSV_H;
+  const outside = hours * STORM_OUTSIDE_MSV_H;
+  const clear = r.weather === 'clear';
+  return (
+    <div class="modal-backdrop shelter-bg">
+      <div class="modal terminal shelter">
+        <div class="modal-head">
+          <h2>{t('sh.title')}</h2>
+          {clear ? (
+            <button class="btn small" onClick={actions.closeTerminal}>
+              {t('term.back')}
+            </button>
+          ) : null}
+        </div>
+        <p>{clear ? t('sh.clear') : t('sh.inside')}</p>
+        <div class="gauge">
+          <span>{t('sh.progress')}</span>
+          <b>{t('sh.hours', { n: num(Math.floor(hours)), total: num(STORM_HOURS) })}</b>
+          <div class="bar">
+            <i style={{ width: `${r.storm * 100}%` }} />
+          </div>
+        </div>
+        <div class="gauges">
+          <div class="gauge">
+            <span>🛡 {t('sh.doseIn')}</span>
+            <b class="good">{inside.toFixed(1)} mSv</b>
+            <small>{t('sh.doseInNote')}</small>
+          </div>
+          <div class="gauge">
+            <span>☢ {t('sh.doseOut')}</span>
+            <b class="low">{outside.toFixed(0)} mSv</b>
+            <small>{t('sh.doseOutNote')}</small>
+          </div>
+        </div>
+        {r.lateDose > 0.05 ? <p class="fault">{t('sh.late', { d: r.lateDose.toFixed(1) })}</p> : null}
+        <div class="sh-crew">
+          {CREW.map((m) => (
+            <span class={crew.value[m.id].where === 'shelter' ? '' : 'arriving'}>
+              {m.icon} {t('crew.name.' + m.id)} {crew.value[m.id].where === 'shelter' ? '✓' : `… ${t('sh.arriving')}`}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CrewPanel() {
   const c = crew.value;
   const h = habitat.value;
+  const storm = rad.value.weather === 'warning' || rad.value.weather === 'storm';
   return (
     <div class="crew">
       <div class="crew-grid">
@@ -927,7 +1068,15 @@ function CrewPanel() {
                 <b>{t('crew.at.' + s.where)}</b>
               </div>
               <Bar label={t('hud.health')} value={s.health} unit="%" warnAt={60} critAt={30} />
-              <p class={`crew-status ${s.status === 'crew.st.safe' ? 'good' : 'warn'}`}>{t(s.status)}</p>
+              <p class={`crew-status ${s.status === 'crew.st.safe' || s.status === 'crew.st.shelter' ? 'good' : 'warn'}`}>
+                {t(s.status)}
+                {s.where === 'moving' && s.eta ? ` (${num(Math.ceil(s.eta))} s)` : ''}
+              </p>
+              {storm && m.id !== 'eng' && s.where !== 'shelter' && s.where !== 'moving' ? (
+                <button class="btn primary small" data-send={m.id} onClick={() => sendToShelter(m.id)}>
+                  {t('crew.send')}
+                </button>
+              ) : null}
               <small class="crew-job">{t('crew.job.' + m.id)}</small>
             </div>
           );
@@ -935,6 +1084,7 @@ function CrewPanel() {
       </div>
       <div class="crew-alerts">
         <b>{t('crew.alerts')}</b>
+        {storm ? <p class="warn">☢ {t('crew.alert.storm')}</p> : null}
         {h.crewIn ? <p class="good">✓ {t('crew.alert.ok')}</p> : <p class="warn">⚠ {t('crew.alert.cramped')}</p>}
       </div>
     </div>
@@ -1349,6 +1499,8 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'playing' && terminal.value === 'build' && <BuildTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'hab' && <HabTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'gh' && <GreenhouseTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'rad' && <RadTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'shelter' && <ShelterScreen actions={actions} />}
       {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>

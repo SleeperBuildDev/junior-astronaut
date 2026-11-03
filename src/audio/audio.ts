@@ -313,7 +313,8 @@ export type Sfx =
   | 'servo'
   | 'breaker'
   | 'powerdown'
-  | 'inflate';
+  | 'inflate'
+  | 'geiger';
 
 let lastHover = 0;
 
@@ -411,6 +412,10 @@ export function sfx(name: Sfx, strength = 1) {
       burst({ type: 'lowpass', freq: 300, dur: 11.5, gain: 0.04, attack: 2 });
       for (let i = 0; i < 6; i++) burst({ type: 'bandpass', freq: 500 + i * 70, q: 6, dur: 0.25, gain: 0.03, at: 1.5 + i * 1.6 });
       note({ freq: 110, freqEnd: 70, dur: 0.35, gain: 0.07, at: 11.6 });
+      break;
+    case 'geiger':
+      // A dosimeter crackle: a few sharp random clicks.
+      for (let i = 0; i < 1 + Math.floor(Math.random() * 3); i++) burst({ type: 'highpass', freq: 3500, dur: 0.012, gain: 0.05, at: Math.random() * 0.12 });
       break;
     case 'powerdown':
       note({ type: 'sawtooth', freq: 320, freqEnd: 60, dur: 1.6, gain: 0.03 });

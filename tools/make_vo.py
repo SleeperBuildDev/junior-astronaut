@@ -78,6 +78,20 @@ LINES = {
     'cs_m5_intro_1': "Day five. Breakfast again comes out of a packet from Earth. The crew has enough for a few weeks, and no more.",
     'cs_m5_intro_2': "Overnight, a cargo lander dropped four more building kits. Enough to build something new. A greenhouse.",
     'cs_m5_end': "Under pink purple lights, the first green leaves grow on the Moon. For the first time, the crew is eating food they grew themselves.",
+    'm6_01': "Mission six. Out here there is no magnetic field and no thick air to stop space radiation. Let's find out how much is reaching the outpost. Read the radiation monitor west of the airlock.",
+    'm6_02': "The surface dose is about one point four millisieverts every day. Now check how much gets through the walls. Take readings at the three survey tripods.",
+    'm6_03': "The walls only block a little. HAB two, where the crew sleeps, is the weakest. We need more shielding, and the Moon gives us plenty for free. Regolith. Use the regolith mover to bury HAB two's sides.",
+    'm6_04': "Shielding complete. Inside the sleeping area, the dose has dropped by more than half. Good timing, too.",
+    'm6_05': "Alert! Earth has spotted a big solar flare. Fast protons will reach us in about two minutes. Open the crew panel and send everyone to the storm shelter in HAB two. Now!",
+    'm6_06': "The crew is on the way to the shelter. Now get yourself inside through the airlock. Quickly!",
+    'm6_07': "The particles are arriving! Your dose is climbing fast. Get inside now!",
+    'm6_08': "Airlock sealed. You are in the shelter with the crew, behind regolith and water. Now we wait.",
+    'm6_09': "The storm is over, and the particle levels are back to normal. Mission six complete. Well done keeping everyone safe.",
+    'cr_cmdr_2': "Commander Ortiz here. Thirty hours in the shelter, and everyone is fine. That regolith wall was worth every minute.",
+    'cr_med_3': "Doctor Lin. Everyone's dose from the storm was small. Outside, it would have been many times higher.",
+    'cs_m6_intro_1': "Day fourteen. The outpost has power, air, water, food, and a home for four.",
+    'cs_m6_intro_2': "But every second, invisible particles from the Sun, and from distant exploding stars, pass straight through its walls.",
+    'cs_m6_end': "The storm has passed. Under regolith and water, the crew rode it out safely. The outpost is ready for whatever the Sun sends next.",
 }
 
 k = Kokoro(MODEL, VOICES)

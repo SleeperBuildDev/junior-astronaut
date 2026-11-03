@@ -46,6 +46,14 @@ export interface Outpost {
   floodLamp: THREE.MeshStandardMaterial | null;
   hab2: Hab2Rig;
   greenhouse: GreenhouseRig;
+  radiation: RadiationRig;
+}
+
+/** Mission 6: radiation monitor, wall-survey tripods and regolith berms around HAB-2. */
+export interface RadiationRig {
+  monitorPos: THREE.Vector3;
+  survey: Record<'hab1' | 'hab2' | 'gh', { group: THREE.Group; light: THREE.Mesh; pos: THREE.Vector3 }>;
+  berms: Record<'west' | 'east' | 'south', { mesh: THREE.Mesh; marker: THREE.Group; light: THREE.Mesh; pos: THREE.Vector3; collider: ColliderSpec }>;
 }
 
 /** The greenhouse on pad G-1, joined to the lab's north hatch (Mission 5). */
@@ -669,7 +677,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     [-4.6, 7, 0.2, 1.2, 0.9, 0.9],
     [-3.2, 7.6, -0.1, 0.9, 0.7, 0.9],
     [-4.0, 7.4, 0.5, 0.8, 0.6, 0.6],
-    [12.5, 7.5, 0.3, 1.6, 1.0, 1.0],
+    [13.6, 7.5, 0.3, 1.6, 1.0, 1.0],
   ]) {
     place(crate(w, h, d), bx + x, bz + z, r, by);
     colliders.push({ kind: 'box', center: new THREE.Vector3(bx + x, by + h / 2, bz + z), half: new THREE.Vector3(w / 2, h / 2, d / 2), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r, 0)) });
@@ -884,6 +892,75 @@ export function buildOutpost(models: OutpostModels): Outpost {
     collider: { kind: 'cylinder', center: new THREE.Vector3(gx, gy, ghSouthZ - ghLen / 2), halfHeight: ghLen / 2, radius: 1.95, quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)) },
   };
 
+  // ---------- Mission 6: radiation monitor, survey points, regolith berms ----------
+  const monX = bx - 12.5;
+  const monZ = bz + 1;
+  const monY = heightAt(monX, monZ);
+  strut(new THREE.Vector3(monX, monY, monZ), new THREE.Vector3(monX, monY + 2.4, monZ), 0.05, mats.alu, group);
+  mesh(new THREE.SphereGeometry(0.22, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), mats.white, group, [monX, monY + 2.45, monZ]);
+  mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.12, 20), mats.dark, group, [monX, monY + 2.4, monZ]);
+  const monBox = mesh(new RoundedBoxGeometry(0.62, 0.5, 0.3, 2, 0.04), mats.white, group, [monX, monY + 1.3, monZ]);
+  mesh(new THREE.PlaneGeometry(0.46, 0.3), mats.amber, group, [monX + 0.16, monY + 1.32, monZ], [0, Math.PI / 2, 0]).castShadow = false;
+  mesh(new THREE.BoxGeometry(0.52, 0.06, 0.06), mats.hazard, group, [monX, monY + 1.6, monZ]);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.4;
+    strut(new THREE.Vector3(monX, monY + 0.9, monZ), new THREE.Vector3(monX + Math.cos(a) * 0.7, monY + 0.02, monZ + Math.sin(a) * 0.7), 0.025, mats.alu, group);
+  }
+  interactables.push({ id: 'rad-monitor', object: monBox, label: () => 'p.radMonitor', minMission: 6 });
+  colliders.push({ kind: 'cylinder', center: new THREE.Vector3(monX, monY + 0.8, monZ), halfHeight: 0.8, radius: 0.3 });
+
+  const surveyPoint = (id: 'hab1' | 'hab2' | 'gh', x: number, z: number) => {
+    const g = new THREE.Group();
+    const y = heightAt(x, z);
+    g.position.set(x, y, z);
+    group.add(g);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      strut(new THREE.Vector3(0, 0.75, 0), new THREE.Vector3(Math.cos(a) * 0.35, 0.01, Math.sin(a) * 0.35), 0.018, mats.alu, g);
+    }
+    const head = mesh(new RoundedBoxGeometry(0.34, 0.24, 0.24, 2, 0.03), mats.white, g, [0, 0.9, 0]);
+    const light = mesh(new THREE.SphereGeometry(0.05, 10, 8), mats.cyan, g, [0, 1.08, 0]);
+    interactables.push({ id: 'survey-' + id, object: head, label: () => 'p.survey', minMission: 6 });
+    return { group: g, light, pos: new THREE.Vector3(x, y + 0.9, z) };
+  };
+  const survey = {
+    hab1: surveyPoint('hab1', bx - 1.5, bz + 3.3),
+    hab2: surveyPoint('hab2', hx + 3.5, bz + 8.5),
+    gh: surveyPoint('gh', bx + 3.0, bz - 20.0),
+  };
+
+  // Regolith berms: half-tubes of piled regolith that rise as the mover works.
+  const bermMat = new THREE.MeshStandardMaterial({ color: 0x77736c, roughness: 1 });
+  const makeBerm = (id: 'west' | 'east' | 'south', x: number, z: number, len: number, alongZ: boolean, mx: number, mz: number) => {
+    const geo = new THREE.CylinderGeometry(1.7, 1.7, len, 28, 1, false, 0, Math.PI);
+    geo.rotateZ(Math.PI / 2);
+    if (alongZ) geo.rotateY(Math.PI / 2);
+    const m = new THREE.Mesh(geo, bermMat);
+    m.position.set(x, by, z);
+    m.scale.y = 0.02;
+    m.castShadow = m.receiveShadow = true;
+    group.add(m);
+    const marker = new THREE.Group();
+    const my = heightAt(mx, mz);
+    marker.position.set(mx, my, mz);
+    group.add(marker);
+    strut(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.0, 0), 0.04, mats.alu, marker);
+    const box = mesh(new RoundedBoxGeometry(0.4, 0.34, 0.26, 2, 0.03), mats.hazard, marker, [0, 1.15, 0]);
+    const light = mesh(new THREE.SphereGeometry(0.05, 10, 8), mats.amber, marker, [0, 1.38, 0]);
+    interactables.push({ id: 'berm-' + id, object: box, label: () => 'p.berm', minMission: 6 });
+    const half = alongZ ? new THREE.Vector3(1.6, 1.0, len / 2) : new THREE.Vector3(len / 2, 1.0, 1.6);
+    return { mesh: m, marker, light, pos: new THREE.Vector3(mx, my + 1.15, mz), collider: { kind: 'box', center: new THREE.Vector3(x, by + 1.0, z), half } as ColliderSpec };
+  };
+  const radiationRig: RadiationRig = {
+    monitorPos: new THREE.Vector3(monX, monY + 1.3, monZ),
+    survey,
+    berms: {
+      west: makeBerm('west', hx - 3.7, bz + 9.2, 5.6, true, hx - 6.0, bz + 9.2),
+      east: makeBerm('east', hx + 3.7, bz + 8.5, 7.0, true, hx + 6.0, bz + 8.5),
+      south: makeBerm('south', hx - 0.4, bz + 13.7, 4.8, false, hx - 0.4, bz + 16.0),
+    },
+  };
+
   let floodLamp: THREE.MeshStandardMaterial | null = null;
   models.floodlight.traverse((c) => {
     const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -897,6 +974,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     floodLamp,
     hab2,
     greenhouse: greenhouseRig,
+    radiation: radiationRig,
     power: {
       pos: new THREE.Vector3(pduX, by, pduZ),
       terminalPos: local(-2.26, 1.45, 0.55),

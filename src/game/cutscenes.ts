@@ -3,7 +3,7 @@ import { playNarration, sfx, stopVoices } from '../audio/audio';
 import type { Outpost } from '../world/base';
 import { statusMaterials } from '../world/base';
 import { heightAt, LAYOUT, mulberry32 } from '../world/heightfield';
-import { EARTH_DIR } from '../world/sky';
+import { EARTH_DIR, SUN_DIR } from '../world/sky';
 import { cinema } from './state';
 
 // In-engine cutscenes: scripted camera moves over the live scene, with narration,
@@ -408,5 +408,37 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
     },
   ];
 
-  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End };
+  const m6Intro: Shot[] = [
+    {
+      dur: 7.5,
+      sub: 'cs.m6_intro_1',
+      vo: 'cs_m6_intro_1',
+      // A high, slow pass over the finished outpost.
+      cam: move(v(B.x - 30, hab.y + 18, B.z + 30), v(B.x - 10, hab.y + 12, B.z + 34), v(B.x, hab.y + 2, B.z - 4), v(B.x + 4, hab.y + 2, B.z - 6)),
+    },
+    {
+      dur: 8,
+      sub: 'cs.m6_intro_2',
+      vo: 'cs_m6_intro_2',
+      // From the habitat roof, tilt up toward the low Sun.
+      cam: (k, cam) => {
+        const e = ease(k);
+        cam.position.set(B.x - 6, hab.y + 6.5, B.z + 6);
+        const look = new THREE.Vector3(B.x, hab.y + 3, B.z).lerp(cam.position.clone().addScaledVector(SUN_DIR, 100), e);
+        cam.lookAt(look);
+      },
+    },
+  ];
+
+  const m6End: Shot[] = [
+    {
+      dur: 11,
+      sub: 'cs.m6_end',
+      vo: 'cs_m6_end',
+      // Around HAB-2, now under its regolith berms, windows glowing.
+      cam: orbit(h2, 15, 4, 2.2, 3.6, 2),
+    },
+  ];
+
+  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End, m6Intro, m6End };
 }

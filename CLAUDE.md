@@ -28,6 +28,12 @@ Done and tested (git history has one commit per milestone):
   protein), 8-day time-lapse with a pH alarm on day 3 (fix to 5.5–6.5), harvest microgreens (hold E).
   Food in "days of food" on the BASE STATUS panel (with water). The clock jumps day 5 → 13, so
   **Mission 6 should start on day 14** (set `day: 14` in its registry entry).
+- **Mission 6 — Radiation Protection** (starts day 14): radiation monitor terminal (surface 1.37 mSv/day,
+  space weather), survey 3 wall points, hold-E regolith berms around HAB-2 (rise + colliders), solar
+  storm warning (2-min countdown banner), order crew to the shelter from the crew panel (they walk with
+  ETAs), enter through the HAB-1 airlock, storm-shelter screen (30 h time-lapse, dose inside vs outside),
+  Geiger crackle + extra suit dose if caught outside. Missions can define `canHold(id)` for several
+  hold-E targets. Note: opening any panel (K, C) pauses the simulation.
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
@@ -42,7 +48,7 @@ Done and tested (git history has one commit per milestone):
 - Cutscenes: Mission 1 landing intro (descent + ballistic dust), Mission 1 ending, Mission 2 intro + ending.
 - Procedural sound effects (Web Audio), machinery hum, ambient music.
 
-**Remaining (the main job): Missions 6–9** plus the systems they need — see "Roadmap" below.
+**Remaining (the main job): Missions 7–9** plus the systems they need — see "Roadmap" below.
 
 ## Run, test, build
 
@@ -58,7 +64,7 @@ npm run build        # production build to dist/ (base './', works on any static
 - **The Browser pane throttles rendering when hidden**, so its FPS is meaningless. Measure with
   the Playwright scripts, which drive the installed Chrome on the real GPU (no browser download):
   - `node qa/perf.mjs` — FPS / triangles / draw calls per quality preset (+ console errors).
-  - `node qa/mission1.mjs`, `node qa/mission2.mjs`, `node qa/mission3.mjs [en|my]`, `node qa/mission4.mjs [en|my]`, `node qa/mission5.mjs [en|my]` — automated playthroughs with screenshots.
+  - `node qa/mission1.mjs`, `node qa/mission2.mjs`, `node qa/mission3.mjs [en|my]`, `node qa/mission4.mjs [en|my]`, `node qa/mission5.mjs [en|my]`, `node qa/mission6.mjs [en|my]` — automated playthroughs with screenshots.
   - `node qa/cutscenes.mjs [en|my]` — screenshots of every cutscene.
   - `node qa/shots.mjs <prefix>` — eye-level beauty shots of the outpost.
   - `node qa/guide.mjs [en|my]` — guidance marker + language screenshots.
@@ -67,7 +73,7 @@ npm run build        # production build to dist/ (base './', works on any static
   cut(name), teleport(x,z,yaw,pitch), look(yaw,pitch), key(code,ms), holdE(ms), closeTerminal,
   state, info, gpu, show(name,on), shadows(on), quality(q), sfx(name), audio, cutscene,
   mission(n)` (jump to mission n), `goTo(id, dist, angle?)` (stand in front of an interactable),
-  `power, habitat, greenhouse, speed, progress`. Add `?unlock=N` to any URL to open missions up to N.
+  `power, habitat, greenhouse, rad, crew, speed, progress`. Add `?unlock=N` to any URL to open missions up to N.
   In QA mode movement works without pointer lock. Extend these hooks for new missions.
 - Show the owner previews along the way: screenshot with the QA scripts, then send the PNGs
   (SendUserFile). He asked for previews during development.
@@ -97,7 +103,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/player/input.ts` | Keyboard by `event.code` (works with Burmese layout), pointer lock (raw input), blur/visibility clearing |
 | `src/player/player.ts` | Rapier kinematic character controller, Moon gravity 1.62, walk/sprint/jump, head bob, landing dip, footstep/jump callbacks, boundary |
 | `src/player/physics.ts` | Rapier world: terrain trimesh + collider specs |
-| `src/game/state.ts` | Signals: screen, panel, suit, mission, prompt, warning, comms, knowledge, cardPopup, missionNumber, holdProgress, waypoint, cinema, `terminal` ('life'/'power'/'array'/'build'/'hab'/'gh'), `gameSpeed` (game s per real s, normal 30) |
+| `src/game/state.ts` | Signals: screen, panel, suit, mission, prompt, warning, comms, knowledge, cardPopup, missionNumber, holdProgress, waypoint, cinema, `terminal` ('life'/'power'/'array'/'build'/'hab'/'gh'/'rad'/'shelter'), `gameSpeed` (game s per real s, normal 30) |
 | `src/game/mission.ts` | `GameMission` interface (begin/update/interact/label/guide/hold) every mission implements |
 | `src/game/mission1.ts` … `mission3.ts` | Mission classes (pattern below); each owns its guide targets |
 | `src/game/save.ts` | `progress` (reached mission, knowledge) in localStorage, `MISSION_COUNT`, `missionDone(n)` |
@@ -105,6 +111,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/game/habitat.ts` | HAB-2 state: tunnel/inflate/pressure/leak/temperature/outfit, `habitatDone()` for later missions |
 | `src/game/crew.ts` | 4 crew (player = flight engineer), location/health/status; `resetCrew(n)` |
 | `src/game/greenhouse.ts` | Greenhouse + food: crops, light cycles, pH alarm, growth, harvest, `foodDays`; `greenhouseDone()` |
+| `src/game/radiation.ts` | Radiation: survey readings, berms, space weather (warning → storm → clear), shelter doses |
 | `src/game/power.ts` | Power simulation: towers (deploy/aim/track), bus, battery (100 kWh), loads, `confirmPlan`, `arrayPanel` |
 | `src/game/lifesupport.ts` | Life-support simulation + terminal actions (`life` signal, `terminalOpen`) |
 | `src/game/knowledge.ts` | Knowledge cards (English) + `cardFor(id, lang)` |
@@ -158,6 +165,8 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
   or Python's urllib; never disable certificate checks.
 - Performance target: the dev PC has only an **Intel UHD 770 integrated GPU**. Current: Medium ≈ 95–110 fps,
   High ≈ 70+, Low ≈ 200+ at 1600×900 (after Mission 3: Medium ≈ 100 fps, 386 draw calls). Keep draw calls/lights modest; floodlight SpotLights are skipped on Low.
+- The other chat's Vite dev server sometimes serves a stale module after many quick edits (a
+  ReferenceError for a removed name): `touch` the changed files to force a fresh transform.
 - Event hooks: `onBuild` (construction) supports several listeners; the other `on*Event` hooks in
   power/habitat/greenhouse keep ONE listener (one mission each) — use a list if two missions need one.
 - Registry entries are added in main.ts; each mission's `end()` clears its timers on restart/leave.
@@ -199,9 +208,6 @@ Shared systems to build first (they unlock several missions):
   and an after-action explanation card.
 
 Mission ideas:
-- **M6 Radiation Protection**: read the radiation monitor, find exposed areas, pile regolith shielding
-  over the habitat with a small excavator/rover attachment, then a solar particle event drill (get the
-  crew into the shelter in time). Cards: solar particle events, regolith shielding.
 - **M7 Scientific Exploration**: make the parked rover drivable (Rapier `DynamicRayCastVehicleController`,
   E to enter/exit), drive to sample sites beyond the base (expand play area), collect soil/rock samples
   (scan + scoop), log observations, return them to the lab. Cards: lunar geology, water ice in shadowed

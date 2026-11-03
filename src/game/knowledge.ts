@@ -299,6 +299,61 @@ export const CARDS: Record<string, Card> = {
     inGame: 'Food is counted as "days of food" for the whole crew. The first harvest is small; the greenhouse adds more as the main crops ripen.',
     source: 'NASA Space Food Systems; NASA Human Research Program: food and nutrition',
   },
+  magnetosphere: {
+    id: 'magnetosphere',
+    title: 'Earth’s invisible shield',
+    icon: '🧲',
+    body: [
+      'Earth’s magnetic field bends most charged particles from the Sun and deep space away from the planet. Its air helps too: there are about 10 tonnes of air above every square metre of ground, enough to absorb most of the rest.',
+      'The Moon has no global magnetic field and almost no air, so particles hit the surface directly. That is why radiation is one of the biggest dangers for people living on the Moon.',
+    ],
+    inGame: 'The radiation monitor shows a steady surface rate. In reality it changes slowly with the Sun’s 11-year activity cycle.',
+    source: 'NASA: Earth’s magnetosphere; NASA Space Radiation Analysis Group',
+  },
+  dose: {
+    id: 'dose',
+    title: 'Measuring radiation',
+    icon: '📟',
+    body: [
+      'Radiation dose is measured in sieverts (Sv), which describe the effect on the human body. A millisievert (mSv) is a thousandth of a sievert. On Earth, people receive about 2 to 3 mSv a year from natural sources.',
+      'On the lunar surface the dose is about 1.37 mSv every day, roughly 200 times more than on Earth. NASA limits each astronaut’s whole-career dose to 600 mSv, so every day on the Moon counts.',
+    ],
+    inGame: 'The readings inside each module are simplified examples, not measurements of real habitats.',
+    source: 'Zhang et al., Science Advances (2020); NASA-STD-3001 (career limit, 2022); UNSCEAR',
+  },
+  shielding: {
+    id: 'shielding',
+    title: 'Shielding with Moon dirt',
+    icon: '🛡️',
+    body: [
+      'Space radiation comes in two kinds. Galactic cosmic rays are extremely fast particles from exploded stars: a steady drizzle that is very hard to stop. Solar particles come in bursts from the Sun and are easier to block.',
+      'Materials rich in hydrogen, like water and plastics, are good shields. Regolith works well too, and it does not need to be launched from Earth. A thick layer of regolith, a metre or more, blocks most solar particles and cuts the cosmic-ray dose a lot.',
+    ],
+    inGame: 'The berms rise in seconds and halve the dose. Real shielding would be built by robots over weeks, and its effect depends on thickness.',
+    source: 'NASA Space Radiation Program; studies of lunar regolith shielding',
+  },
+  spe: {
+    id: 'spe',
+    title: 'Solar storms',
+    icon: '☀️',
+    body: [
+      'Sometimes the Sun blasts out huge numbers of protons in a flare or a cloud of material. The fastest ones can reach the Moon within tens of minutes. These solar particle events are rare, but a big one can give a dangerous dose to anyone left unprotected.',
+      'Space-weather forecasters watch the Sun all the time and warn crews. In August 1972, between the Apollo 16 and 17 missions, a huge solar storm struck. Luckily, no one was on the Moon at the time.',
+    ],
+    inGame: 'You get a 2-minute warning and the storm lasts 30 hours. Real warnings and storms vary a lot.',
+    source: 'NOAA Space Weather Prediction Center; NASA: solar particle events',
+  },
+  stormshelter: {
+    id: 'stormshelter',
+    title: 'Storm shelters',
+    icon: '🏚️',
+    body: [
+      'During a solar storm, astronauts hide in the most shielded place they have. On NASA’s Orion spacecraft the crew builds a shelter by packing storage bags of food, water and supplies around themselves.',
+      'On a Moon base the shelter would be a small room deep under regolith and surrounded by water tanks. Crews practise getting there fast, because every minute outside during a storm adds to their dose.',
+    ],
+    inGame: 'The whole crew shelters in HAB-2, behind the water walls you added in Mission 4 and the regolith you just piled up.',
+    source: 'NASA: Orion radiation protection and storm shelter',
+  },
 };
 
 /** The card in the current UI language (Burmese falls back to English per field). */
