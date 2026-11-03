@@ -48,6 +48,7 @@ export class Mission3 implements GameMission {
   onFinished: () => void = () => (screen.value = 'complete');
   private steps: Step[] = STEPS.map((s) => ({ ...s }));
   private nightT = -1;
+  private timers: ReturnType<typeof setTimeout>[] = [];
   private marks: { pdu: THREE.Vector3; terminal: THREE.Vector3; bus: THREE.Vector3; battery: THREE.Vector3; boxes: THREE.Vector3[] };
   private pduPos: THREE.Vector3;
 
@@ -68,7 +69,14 @@ export class Mission3 implements GameMission {
     });
   }
 
+  end() {
+    this.timers.forEach(clearTimeout);
+    this.timers = [];
+    this.nightT = -1;
+  }
+
   begin() {
+    this.end();
     this.steps = STEPS.map((s) => ({ ...s }));
     this.nightT = -1;
     resetPower();
@@ -126,15 +134,17 @@ export class Mission3 implements GameMission {
       unlock('powerbudget');
       this.nightT = 0;
       gameSpeed.value = NIGHT_SPEED;
-      setTimeout(() => sfx('powerdown'), 5000);
+      this.timers.push(setTimeout(() => sfx('powerdown'), 5000));
     }
     if (id === 'night') {
       gameSpeed.value = NORMAL_SPEED;
       unlock('lunarnight');
-      setTimeout(() => {
-        terminal.value = null;
-        this.onFinished();
-      }, 6000);
+      this.timers.push(
+        setTimeout(() => {
+          terminal.value = null;
+          this.onFinished();
+        }, 6000),
+      );
     }
     this.say(id as keyof typeof LINES);
   }

@@ -36,6 +36,8 @@ export interface GameMission {
   /** Prompt key for an object, or null to use the object's default label. */
   label(id: string): string | null;
   holdComplete?(id: string): void;
+  /** Called when the mission is left or restarted: cancel timers so nothing fires later. */
+  end?(): void;
   /** Where the guide marker should point for the current step. */
   guide(p: MissionCtx): GuideTarget | null;
 }

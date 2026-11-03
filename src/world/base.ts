@@ -12,6 +12,8 @@ export interface Interactable {
   id: string;
   object: THREE.Object3D;
   label: () => string;
+  /** First mission where it can be used (it is only scenery before that). */
+  minMission?: number;
 }
 
 export interface Outpost {
@@ -42,6 +44,30 @@ export interface Outpost {
   };
   /** The floodlights' emissive lamp material (dimmed when they are switched off). */
   floodLamp: THREE.MeshStandardMaterial | null;
+  hab2: Hab2Rig;
+}
+
+/** The inflatable habitat module on build pad H-2 (Mission 4), animated by main.ts. */
+export interface Hab2Rig {
+  /** Connecting tunnel from the node's south port; scale.z 0..1. */
+  tunnel: THREE.Group;
+  /** Inflatable shell, pivoting on its north end: scale (radial, radial, length). */
+  shell: THREE.Group;
+  /** Cover on the node's spare port (hidden once the tunnel is attached). */
+  cover: THREE.Mesh;
+  /** Launch restraint bands around the packed module (hidden once it inflates). */
+  bands: THREE.Object3D[];
+  /** Window glass (glows once the crew lives inside). */
+  glass: THREE.MeshStandardMaterial | null;
+  valveLight: THREE.Mesh;
+  valvePos: THREE.Vector3;
+  terminalPos: THREE.Vector3;
+  buildTerminalPos: THREE.Vector3;
+  center: THREE.Vector3;
+  packedCollider: ColliderSpec;
+  fullCollider: ColliderSpec;
+  /** Shell scale when packed: radial and lengthwise fractions of the inflated size. */
+  packed: { r: number; l: number };
 }
 
 // ---------- procedural textures ----------
@@ -152,6 +178,7 @@ const mats = {
   green: new THREE.MeshStandardMaterial({ color: 0x002200, emissive: 0x31ff7a, emissiveIntensity: 3 }),
   amber: new THREE.MeshStandardMaterial({ color: 0x221500, emissive: 0xffa21a, emissiveIntensity: 4 }),
   cyan: new THREE.MeshStandardMaterial({ color: 0x002030, emissive: 0x38d8ff, emissiveIntensity: 3 }),
+  strapDark: new THREE.MeshStandardMaterial({ color: 0x6b6b66, roughness: 0.85 }),
 };
 
 let texturesReady = false;
@@ -422,7 +449,7 @@ function lifeSupportUnit() {
 // ---------- outpost ----------
 
 /** Detailed models built in Blender (tools/blender/outpost_assets.py). */
-export type OutpostModels = Record<'hab_module' | 'lab_module' | 'node_module' | 'rover' | 'floodlight' | 'power_unit' | 'battery_bank', THREE.Object3D>;
+export type OutpostModels = Record<'hab_module' | 'lab_module' | 'node_module' | 'rover' | 'floodlight' | 'power_unit' | 'battery_bank' | 'inflatable_hab', THREE.Object3D>;
 
 function instance(model: THREE.Object3D) {
   const o = model.clone(true);
@@ -497,8 +524,8 @@ export function buildOutpost(models: OutpostModels): Outpost {
 
   // Oxygen station
   const o2 = o2Station();
-  place(o2.group, bx + 2, bz + 7.5, 0, by);
-  colliders.push({ kind: 'box', center: new THREE.Vector3(bx + 2, by + 1.2, bz + 7.5), half: new THREE.Vector3(2.2, 1.2, 1.2) });
+  place(o2.group, bx + 0.5, bz + 7.5, 0, by);
+  colliders.push({ kind: 'box', center: new THREE.Vector3(bx + 0.5, by + 1.2, bz + 7.5), half: new THREE.Vector3(2.2, 1.2, 1.2) });
   interactables.push({ id: 'o2', object: o2.panel, label: () => 'p.o2refill' });
 
   // Power area: the power distribution unit (PDU), its battery bank, terminal and main switch.
@@ -622,10 +649,10 @@ export function buildOutpost(models: OutpostModels): Outpost {
 
   // Crates near the habitat
   for (const [x, z, r, w, h, d] of [
-    [-3, 7, 0.2, 1.2, 0.9, 0.9],
-    [-1.6, 7.6, -0.1, 0.9, 0.7, 0.9],
-    [-2.4, 7.4, 0.5, 0.8, 0.6, 0.6],
-    [8, 6, 0.3, 1.6, 1.0, 1.0],
+    [-4.6, 7, 0.2, 1.2, 0.9, 0.9],
+    [-3.2, 7.6, -0.1, 0.9, 0.7, 0.9],
+    [-4.0, 7.4, 0.5, 0.8, 0.6, 0.6],
+    [12.5, 7.5, 0.3, 1.6, 1.0, 1.0],
   ]) {
     place(crate(w, h, d), bx + x, bz + z, r, by);
     colliders.push({ kind: 'box', center: new THREE.Vector3(bx + x, by + h / 2, bz + z), half: new THREE.Vector3(w / 2, h / 2, d / 2), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r, 0)) });
@@ -675,6 +702,109 @@ export function buildOutpost(models: OutpostModels): Outpost {
   interactables.push({ id: 'ls-terminal', object: ls.term, label: () => 'p.terminal' });
   interactables.push({ id: 'ls-filter', object: ls.filter, label: () => 'p.filterInspect' });
 
+  // ---------- Build pad H-2: inflatable habitat on the node's south port ----------
+  const hx = bx + 6.4;
+  const hy = by + 3.0; // module axis height, level with the node's ports
+  const portZ = bz + 2.35;
+  const shellLen = 8;
+  // Spare docking port on the node, covered until a module is attached
+  mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.7, 40), mats.alu, group, [hx, hy, bz + 2.0], [Math.PI / 2, 0, 0]);
+  mesh(new THREE.TorusGeometry(1.12, 0.07, 8, 48), mats.dark, group, [hx, hy, portZ]);
+  const cover = mesh(new THREE.CylinderGeometry(0.95, 0.95, 0.06, 40), mats.white, group, [hx, hy, portZ + 0.03], [Math.PI / 2, 0, 0]);
+  // Flexible connecting tunnel (grows out of the port)
+  const tunnel = new THREE.Group();
+  tunnel.position.set(hx, hy, portZ);
+  group.add(tunnel);
+  const tunnelLen = bz + 4.0 - portZ;
+  mesh(new THREE.CylinderGeometry(0.95, 0.95, tunnelLen, 32, 1, true), mats.shell, tunnel, [0, 0, tunnelLen / 2], [Math.PI / 2, 0, 0]);
+  for (let k = 0; k <= 6; k++) mesh(new THREE.TorusGeometry(0.97, 0.035, 6, 32), mats.strapDark, tunnel, [0, 0, (k / 6) * tunnelLen]);
+  tunnel.scale.z = 0.001;
+  // Inflatable shell, pivoting on its north end so it grows away from the node
+  const shell = new THREE.Group();
+  shell.position.set(hx, hy, bz + 4.0);
+  group.add(shell);
+  const shellModel = instance(models.inflatable_hab);
+  shellModel.rotation.y = -Math.PI / 2;
+  shellModel.position.z = shellLen / 2;
+  shell.add(shellModel);
+  let glass: THREE.MeshStandardMaterial | null = null;
+  shellModel.traverse((c) => {
+    const m = c as THREE.Mesh;
+    if (!m.isMesh) return;
+    const mats_ = Array.isArray(m.material) ? m.material : [m.material];
+    mats_.forEach((mt, i) => {
+      if ((mt as THREE.MeshStandardMaterial).name === 'Glass') {
+        glass = (mt as THREE.MeshStandardMaterial).clone();
+        glass.emissiveIntensity = 0;
+        if (Array.isArray(m.material)) m.material[i] = glass;
+        else m.material = glass;
+      }
+    });
+  });
+  const packed = { r: 0.48, l: 0.33 };
+  shell.scale.set(packed.r, packed.r, packed.l);
+  // Launch restraint bands around the packed module
+  const bands: THREE.Object3D[] = [];
+  for (const z of [0.5, 1.3, 2.1]) bands.push(mesh(new THREE.TorusGeometry(1.2, 0.05, 6, 40), mats.hazard, group, [hx, hy, bz + 4.0 + z]));
+  // Pedestal under the packed module and saddles under the inflated one
+  mesh(new THREE.CylinderGeometry(0.35, 0.6, hy - by - 1.1, 12), mats.dark, group, [hx, by + (hy - by - 1.1) / 2, bz + 5.3]);
+  for (const z of [5.6, 10.2]) {
+    mesh(new THREE.BoxGeometry(3.4, 0.14, 0.3), mats.alu, group, [hx, by + 0.62, bz + z]);
+    for (const sx of [-1.5, 1.5]) mesh(new THREE.BoxGeometry(0.16, 0.62, 0.3), mats.alu, group, [hx + sx, by + 0.31, bz + z]);
+  }
+  // Pad outline with hazard stripes and a painted label
+  for (const [cx, cz, w, d] of [[hx, bz + 3.4, 6.4, 0.25], [hx, bz + 12.8, 6.4, 0.25], [hx - 3.1, bz + 8.1, 0.25, 9.4], [hx + 3.1, bz + 8.1, 0.25, 9.4]]) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), mats.hazard);
+    stripe.position.set(cx, by + 0.02, cz);
+    stripe.receiveShadow = true;
+    group.add(stripe);
+  }
+  const padLabel = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshStandardMaterial({ map: labelTexture('PAD H-2', '#2a2d31', '#f2b81c'), roughness: 0.9 }));
+  padLabel.rotation.x = -Math.PI / 2;
+  padLabel.position.set(hx + 1.4, by + 0.03, bz + 12.2);
+  group.add(padLabel);
+  // Inflation control box on a post, with a hose up to the module
+  const vx = hx - 2.6;
+  const vz = bz + 5.6;
+  strut(new THREE.Vector3(vx, by, vz), new THREE.Vector3(vx, by + 1.0, vz), 0.05, mats.alu, group);
+  const valve = mesh(new RoundedBoxGeometry(0.5, 0.45, 0.3, 2, 0.04), mats.white, group, [vx, by + 1.2, vz]);
+  mesh(new THREE.TorusGeometry(0.12, 0.025, 6, 20), mats.red, group, [vx - 0.17, by + 1.2, vz], [0, Math.PI / 2, 0]);
+  const valveLight = mesh(new THREE.SphereGeometry(0.045, 10, 8), mats.amber, group, [vx, by + 1.48, vz]);
+  tube([new THREE.Vector3(vx + 0.2, by + 1.1, vz), new THREE.Vector3(vx + 0.9, by + 0.3, vz), new THREE.Vector3(hx - 1.0, by + 1.0, vz)], 0.04, mats.rubber, group);
+  interactables.push({ id: 'hab2-valve', object: valve, label: () => 'p.valve', minMission: 4 });
+  colliders.push({ kind: 'cylinder', center: new THREE.Vector3(vx, by + 0.7, vz), halfHeight: 0.7, radius: 0.3 });
+  // Habitat terminal beside the tunnel, and the construction terminal at the pad's corner
+  const terminalPost = (x: number, z: number, id: string, label: string) => {
+    strut(new THREE.Vector3(x, by, z), new THREE.Vector3(x, by + 1.2, z), 0.06, mats.alu, group);
+    const t = mesh(new RoundedBoxGeometry(0.1, 0.55, 0.8, 2, 0.03), mats.dark, group, [x - 0.05, by + 1.42, z], [0, 0, 0.5]);
+    const scr = mesh(new THREE.PlaneGeometry(0.66, 0.42), mats.cyan, group, [x - 0.11, by + 1.45, z]);
+    scr.rotation.set(0, -Math.PI / 2, 0);
+    scr.rotateX(-0.5);
+    scr.castShadow = false;
+    interactables.push({ id, object: t, label: () => label, minMission: 4 });
+    colliders.push({ kind: 'cylinder', center: new THREE.Vector3(x, by + 0.7, z), halfHeight: 0.7, radius: 0.25 });
+    return new THREE.Vector3(x - 0.11, by + 1.45, z);
+  };
+  const habTermPos = terminalPost(hx - 1.8, bz + 3.1, 'hab2-terminal', 'p.habTerminal');
+  const buildTermPos = terminalPost(bx + 2.2, bz + 5.0, 'build-terminal', 'p.buildTerminal');
+  const hab2: Hab2Rig = {
+    tunnel,
+    shell,
+    cover,
+    bands,
+    glass,
+    valveLight,
+    valvePos: new THREE.Vector3(vx, by + 1.2, vz),
+    terminalPos: habTermPos,
+    buildTerminalPos: buildTermPos,
+    center: new THREE.Vector3(hx, by, bz + 8),
+    packedCollider: { kind: 'box', center: new THREE.Vector3(hx, by + 2.0, bz + 5.3), half: new THREE.Vector3(1.25, 2.0, 1.4) },
+    // A horizontal cylinder along the module (Rapier cylinders stand on Y, so tip it onto Z).
+    fullCollider: { kind: 'cylinder', center: new THREE.Vector3(hx, hy, bz + 8.0), halfHeight: 4.0, radius: 2.35, quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)) },
+    packed,
+  };
+  for (const z of [5.6, 10.2]) colliders.push({ kind: 'box', center: new THREE.Vector3(hx, by + 0.31, bz + z), half: new THREE.Vector3(1.7, 0.31, 0.15) });
+
   let floodLamp: THREE.MeshStandardMaterial | null = null;
   models.floodlight.traverse((c) => {
     const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -686,6 +816,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     colliders,
     arrays,
     floodLamp,
+    hab2,
     power: {
       pos: new THREE.Vector3(pduX, by, pduZ),
       terminalPos: local(-2.26, 1.45, 0.55),
@@ -704,7 +835,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     blinkers,
     sensorLights,
     airlockPos: new THREE.Vector3(bx - 7.1, by, bz),
-    o2StationPos: new THREE.Vector3(bx + 4.5, by, bz + 7.5),
+    o2StationPos: new THREE.Vector3(bx + 3.0, by, bz + 7.5),
     habitatPos: new THREE.Vector3(bx, by, bz),
   };
 }

@@ -52,6 +52,8 @@ def mats():
         'lamp': material('Lamp', (1, 1, 1), 0.0, 0.3, emit=(1.0, 0.95, 0.85), strength=8.0),
         'radiator': material('Radiator', (0.88, 0.89, 0.9), 0.3, 0.35),
         'tire': material('Tire', (0.42, 0.42, 0.40), 0.9, 0.55),
+        'fabric': material('Fabric', (0.86, 0.85, 0.81), 0.0, 0.92),
+        'strap': material('Strap', (0.50, 0.50, 0.47), 0.0, 0.8),
     }
 
 # ---------------------------------------------------------------- primitives
@@ -347,8 +349,40 @@ def battery_bank(M):
     box((0.5, 0.02, 0.18), (-1.35, -0.68, 1.62), M['hazard'])
 
 
+def inflatable_hab(M, length=8.0, radius=2.4):
+    """Inflatable habitat shell (after NASA TransHab / BEAM): layered fabric held in shape
+    by restraint straps, with rigid metal bulkheads at both ends. Axis along X, centred
+    on the origin; the game scales it from packed to inflated about the north (-X) end."""
+    cap = radius * 0.5
+    body = length - 2 * cap
+    cyl(radius, body, (0, 0, 0), M['fabric'], rot=(0, math.pi / 2, 0), verts=72)
+    for s in (-1, 1):
+        sphere(radius, (s * body / 2, 0, 0), M['fabric'], scale=(cap / radius, 1, 1), segs=56)
+        # rigid bulkhead ring and hatch plate at each end
+        torus(radius * 0.42, 0.09, (s * (body / 2 + cap * 0.93), 0, 0), M['alu'], rot=(0, math.pi / 2, 0), major_seg=48)
+        cyl(radius * 0.4, 0.08, (s * (body / 2 + cap * 0.95), 0, 0), M['panel'], rot=(0, math.pi / 2, 0), verts=40)
+    # hoop straps around the body
+    for i in range(9):
+        x = -body / 2 + i * body / 8
+        torus(radius + 0.015, 0.03, (x, 0, 0), M['strap'], rot=(0, math.pi / 2, 0), major_seg=72, minor_seg=6)
+    # long straps running end to end
+    for k in range(10):
+        a = math.radians(k * 36 + 18)
+        box((body, 0.07, 0.025), (0, math.cos(a) * (radius + 0.012), math.sin(a) * (radius + 0.012)), M['strap'], rot=(a - math.pi / 2, 0, 0), bevel=0.0)
+    # windows with frames and covers
+    for side in (-1, 1):
+        for x in (-body * 0.25, body * 0.25):
+            y = side * (radius - 0.03)
+            cyl(0.3, 0.12, (x, y, 0.45), M['glass'], rot=(math.pi / 2, 0, 0), verts=32)
+            torus(0.33, 0.06, (x, y + side * 0.05, 0.45), M['dark'], rot=(math.pi / 2, 0, 0), major_seg=32)
+    # micrometeoroid "bumper" seams: a few quilting lines between straps
+    for i in range(8):
+        x = -body / 2 + body / 16 + i * body / 8
+        torus(radius + 0.005, 0.008, (x, 0, 0), M['seam'], rot=(0, math.pi / 2, 0), major_seg=72, minor_seg=4)
+
+
 ASSETS = {
-    'battery_bank': battery_bank,
+    'inflatable_hab': inflatable_hab,    'battery_bank': battery_bank,
     'hab_module': lambda M: habitat_module(M, 9.0, 2.1, lab=False),
     'lab_module': lambda M: habitat_module(M, 8.0, 1.9, lab=True),
     'node_module': node_module,

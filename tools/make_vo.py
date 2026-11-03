@@ -49,6 +49,21 @@ LINES = {
     'cs_m3_intro_1': "Day three. The air is good and the water is clean. But the outpost is running on the lander's batteries, and they are almost empty.",
     'cs_m3_intro_2': "On the ridge, three solar towers stand folded, still packed up from the landing. Today they must wake up.",
     'cs_m3_end': "The Sun climbs back over the horizon. Three towers turn to meet it. For the first time, the outpost makes its own power.",
+    'm4_01': "Mission four. The crew of four is still sleeping in the lander, and it is cramped. A packed habitat module is waiting on the build pad. Go to the construction terminal south of the habitat.",
+    'm4_02': "Good. Open the construction terminal and build the habitat module.",
+    'm4_03': "The connecting tunnel is in place. Now the module needs air. Go to the inflation valve and hold E to inflate it.",
+    'm4_04': "Inflation complete. The fabric shell is now as big as a small house. Open the habitat terminal by the tunnel and choose a cabin pressure.",
+    'm4_05': "Pressure is holding steady. No leaks. Next, bring the cabin up to a comfortable temperature.",
+    'm4_06': "The cabin is warm and comfortable. Now make it a home. Connect the air and water lines, fill the water walls, and install the sleep stations.",
+    'm4_07': "HAB two is ready. Calling the crew to move in.",
+    'm4_08': "The whole crew is inside. Press C to open the crew panel and check that everyone is safe.",
+    'm4_09': "Everyone is safe and settled. Mission four complete. The outpost is now a home for four.",
+    'cr_cmdr_1': "This is Commander Ortiz. We are moving into HAB two now. Four real beds. Great work, engineer.",
+    'cr_sci_1': "Kofi here. It is warm, it is quiet, and there is a window with a view of Earth. I love it.",
+    'cr_med_1': "Doctor Lin. Pressure, oxygen and temperature all look good. The crew can finally get proper sleep.",
+    'cs_m4_intro_1': "Day four. Four astronauts, still sleeping in a lander built for a short trip.",
+    'cs_m4_intro_2': "Overnight, the rover brought a packed habitat module to the build pad. Folded up, it is smaller than a car.",
+    'cs_m4_end': "Inside the new module there is air, warmth, and a bed for everyone. Tonight, the crew sleeps in a home on the Moon.",
 }
 
 k = Kokoro(MODEL, VOICES)
@@ -60,7 +75,10 @@ for key, text in LINES.items():
         continue
     # Cutscene narration uses a different, calmer voice than Mission Control.
     narrator = key.startswith('cs_')
-    audio, sr = k.create(text, voice='af_heart' if narrator else 'am_michael', speed=0.92 if narrator else 0.95, lang='en-us')
+    # Crew members each have their own voice; Mission Control is am_michael.
+    voice = {'cr_cmdr': 'bf_emma', 'cr_sci': 'am_adam', 'cr_med': 'af_sarah'}.get(key[:7], 'af_heart' if narrator else 'am_michael')
+    lang = 'en-gb' if voice.startswith('b') else 'en-us'
+    audio, sr = k.create(text, voice=voice, speed=0.92 if narrator else 0.95, lang=lang)
     with tempfile.TemporaryDirectory() as tmp:
         wav = os.path.join(tmp, key + '.wav')
         sf.write(wav, audio, sr)

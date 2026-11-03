@@ -189,6 +189,61 @@ export const CARDS: Record<string, Card> = {
     inGame: 'Here the Sun sinks much faster and lower than it really would, and the dark spell lasts only about 10 hours.',
     source: 'NASA Moon facts; Lunar Reconnaissance Orbiter illumination studies',
   },
+  inflatable: {
+    id: 'inflatable',
+    title: 'Inflatable habitats',
+    icon: '🎈',
+    body: [
+      'Every kilogram sent to the Moon costs a lot of fuel, so engineers look for light, compact buildings. An inflatable module launches folded up and is filled with air once it arrives, growing to several times its packed size.',
+      'In 2016 NASA attached the inflatable BEAM module to the International Space Station. Packed, it was about 2 m long; filled with air it grew to about 4 m. Its wall is many layers thick: an airtight bladder, strong woven straps, and layers that stop tiny meteoroids.',
+    ],
+    inGame: 'Your module inflates in seconds. A real one is filled slowly and carefully over hours, with many checks along the way.',
+    source: 'NASA: Bigelow Expandable Activity Module (BEAM) on the ISS',
+  },
+  habitat: {
+    id: 'habitat',
+    title: 'Why a pressurised home?',
+    icon: '🫧',
+    body: [
+      'On the Moon there is almost no air pressure. Without a pressurised habitat or a spacesuit, a person would lose consciousness in about 15 seconds. A habitat keeps air pushing on the body, just as Earth’s atmosphere does.',
+      'The ISS keeps its air at 101 kPa, like Earth at sea level. Before spacewalks, the Space Shuttle crew lowered the cabin to about 70 kPa with a little more oxygen, so their bodies adjusted faster to the lower pressure inside a spacesuit. Future Moon bases may do something similar.',
+    ],
+    inGame: 'The leak check takes a few seconds. Real crews watch the pressure for many hours before trusting a new module.',
+    source: 'NASA Human Integration Design Handbook; NASA Exploration Atmospheres Working Group',
+  },
+  thermal: {
+    id: 'thermal',
+    title: 'Keeping the right temperature',
+    icon: '🌡️',
+    body: [
+      'Outside, the lunar surface can swing from about 120 °C in sunlight to about −130 °C at night. Inside, the ISS keeps the crew between about 18 and 27 °C.',
+      'Habitats use thick insulation blankets to slow heat loss, heaters for cold periods, and radiators that send extra heat away into space. People and machines make heat too, so sometimes a habitat needs cooling more than heating.',
+    ],
+    inGame: 'The cabin warms up in seconds and only heaters are modelled. Real habitats balance heating and cooling all the time.',
+    source: 'NASA: ISS Active Thermal Control System; LRO Diviner measurements',
+  },
+  sleep: {
+    id: 'sleep',
+    title: 'Sleeping safely in space',
+    icon: '🛏️',
+    body: [
+      'On the ISS each astronaut has a private crew quarter about the size of a phone booth, with a sleeping bag, a light, a laptop and a fan that keeps fresh air moving. Good sleep keeps the crew healthy, alert and safe.',
+      'Water and plastics are rich in hydrogen, which makes them good at blocking space radiation. Engineers have suggested putting water tanks around sleeping areas, since astronauts spend about a third of each day there.',
+    ],
+    inGame: 'The water walls are a simplified idea. A real base would combine many kinds of shielding.',
+    source: 'NASA: ISS crew quarters; NASA research on hydrogen-rich radiation shielding',
+  },
+  crew: {
+    id: 'crew',
+    title: 'The crew',
+    icon: '👩‍🚀',
+    body: [
+      'A long Moon mission needs people with different skills. The commander leads and makes the big decisions. The flight engineer keeps the machines running. The scientist studies the Moon. The medical officer looks after everyone’s health.',
+      'Astronauts train for years and also learn each other’s jobs, so the crew can still cope if someone is ill or busy. Working well as a team matters as much as technical skill.',
+    ],
+    inGame: 'Your crew has four people. NASA’s first Artemis landings plan two astronauts on the surface; a future base could host more.',
+    source: 'NASA Astronaut Selection and Training; NASA Artemis program',
+  },
 };
 
 /** The card in the current UI language (Burmese falls back to English per field). */

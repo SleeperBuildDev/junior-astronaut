@@ -312,7 +312,8 @@ export type Sfx =
   | 'panel'
   | 'servo'
   | 'breaker'
-  | 'powerdown';
+  | 'powerdown'
+  | 'inflate';
 
 let lastHover = 0;
 
@@ -403,6 +404,13 @@ export function sfx(name: Sfx, strength = 1) {
       burst({ type: 'highpass', freq: 2500, dur: 0.08, gain: 0.05 });
       burst({ type: 'bandpass', freq: 6000, q: 4, dur: 0.05, gain: 0.03, at: 0.05 });
       note({ type: 'sawtooth', freq: 60, freqEnd: 120, dur: 0.8, gain: 0.02, attack: 0.1, at: 0.15 });
+      break;
+    case 'inflate':
+      // Air rushing into the shell, with the fabric creaking as the straps take the load.
+      burst({ type: 'bandpass', freq: 2600, freqEnd: 900, q: 0.5, dur: 11.5, gain: 0.05, attack: 0.8 });
+      burst({ type: 'lowpass', freq: 300, dur: 11.5, gain: 0.04, attack: 2 });
+      for (let i = 0; i < 6; i++) burst({ type: 'bandpass', freq: 500 + i * 70, q: 6, dur: 0.25, gain: 0.03, at: 1.5 + i * 1.6 });
+      note({ freq: 110, freqEnd: 70, dur: 0.35, gain: 0.07, at: 11.6 });
       break;
     case 'powerdown':
       note({ type: 'sawtooth', freq: 320, freqEnd: 60, dur: 1.6, gain: 0.03 });

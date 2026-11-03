@@ -288,3 +288,52 @@ body.lang-my .objective li { padding: 4px 0; }
 .ms-item small { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--green); }
 .ms-item.locked { opacity: 0.5; cursor: default; }
 .ms-item.locked small { color: var(--dim); }
+
+/* ---------- Mission 4: construction, habitat, crew ---------- */
+.build-term { width: min(900px, 95vw); }
+.bt-res { display: flex; gap: 22px; margin: 12px 0; font-family: var(--mono); font-size: 13px; color: var(--dim); }
+.bt-res b { color: #fff; font-size: 18px; margin-left: 6px; }
+.bt-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; }
+.bt-list { display: flex; flex-direction: column; gap: 5px; }
+.bt-item {
+  font: inherit; font-size: 14px; display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer; padding: 7px 9px;
+  border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: var(--ink);
+}
+.bt-item.sel { border-color: var(--amber); background: rgba(255, 181, 71, 0.1); }
+.bt-item.locked { color: var(--dim); }
+.bt-item small { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--dim); white-space: nowrap; }
+.bt-icon { width: 1.4em; text-align: center; }
+.bt-detail h3 { margin: 0 0 6px; font-size: 20px; }
+.bt-detail p { margin: 6px 0; line-height: 1.45; }
+.bt-cost { border-collapse: collapse; margin: 6px 0; font-size: 14px; }
+.bt-cost td { padding: 3px 14px 3px 0; }
+.bt-cost td:first-child { color: var(--dim); }
+.bt-cost td:last-child { font-family: var(--mono); }
+.bt-effect { background: rgba(92, 242, 154, 0.07); border-radius: 8px; padding: 6px 9px; font-size: 14px; }
+.bt-checks { list-style: none; padding: 0; margin: 8px 0; font-size: 14px; }
+.bt-checks .ok { color: var(--green); }
+.bt-checks .bad { color: var(--amber); }
+.bt-done { color: var(--green); font-weight: 700; }
+.bt-note { display: block; margin-top: 8px; color: var(--dim); }
+.choice { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+.choice .btn { display: flex; flex-direction: column; gap: 3px; text-align: left; }
+.choice .btn small { font-weight: 400; color: var(--dim); font-size: 12px; }
+.thermo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.thermo b { font-family: var(--mono); font-size: 22px; min-width: 70px; text-align: center; }
+.thermo b.good { color: var(--green); }
+.thermo b.low { color: var(--amber); }
+.thermo small { flex-basis: 100%; color: var(--dim); }
+.crew-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+.crew-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: rgba(255, 255, 255, 0.03); }
+.crew-card.you { border-color: var(--cyan); }
+.crew-head { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
+.crew-head small { display: block; color: var(--cyan); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.crew-icon { font-size: 28px; }
+.crew-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--dim); }
+.crew-row b { color: #fff; font-weight: 400; }
+.crew-status { margin: 6px 0 2px; font-weight: 700; font-size: 14px; }
+.crew-status.good, .crew-alerts .good { color: var(--green); }
+.crew-status.warn, .crew-alerts .warn { color: var(--amber); }
+.crew-job { color: var(--dim); font-size: 12px; line-height: 1.4; }
+.crew-alerts { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.crew-alerts p { margin: 4px 0; }

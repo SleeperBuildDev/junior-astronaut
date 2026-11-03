@@ -15,14 +15,16 @@ export const NIGHT_HOURS = 10;
 export const LOCK_DEG = 4;
 const DEPLOY_SECONDS = 5;
 
-export type LoadId = 'life' | 'heat' | 'comms' | 'flood' | 'lab' | 'rover';
-export const LOADS: { id: LoadId; kw: number; essential?: boolean }[] = [
+export type LoadId = 'life' | 'heat' | 'comms' | 'flood' | 'lab' | 'rover' | 'hab2';
+/** extra: only listed once a later mission switches it on (e.g. the new habitat module). */
+export const LOADS: { id: LoadId; kw: number; essential?: boolean; extra?: boolean }[] = [
   { id: 'life', kw: 3.0, essential: true },
   { id: 'heat', kw: 2.5, essential: true },
   { id: 'comms', kw: 0.4, essential: true },
   { id: 'flood', kw: 1.2 },
   { id: 'lab', kw: 2.0 },
   { id: 'rover', kw: 3.0 },
+  { id: 'hab2', kw: 2.0, essential: true, extra: true },
 ];
 
 export interface ArrayState {
@@ -42,7 +44,7 @@ function initial() {
     arrays: STOWED_OFFSET.map((o) => ({ deploy: 0, deploying: false, yaw: sunYaw() + o, tracking: false }) as ArrayState),
     bus: false,
     batteryKWh: 12,
-    loads: { life: true, heat: true, comms: true, flood: true, lab: true, rover: true } as Record<LoadId, boolean>,
+    loads: { life: true, heat: true, comms: true, flood: true, lab: true, rover: true, hab2: false } as Record<LoadId, boolean>,
     /** Fraction of full sunlight reaching the towers (0 while the Sun is below the horizon). */
     sun: 1,
     planLocked: false,
@@ -153,6 +155,12 @@ export function confirmPlan() {
   power.value = { ...power.value, planLocked: true };
   listener('plan');
   return true;
+}
+
+/** Switches a facility's load on or off from game logic (not the player's power plan). */
+export function setExtraLoad(id: LoadId, on: boolean) {
+  const p = power.value;
+  if (p.loads[id] !== on) power.value = { ...p, loads: { ...p.loads, [id]: on } };
 }
 
 export function setSunlight(sun: number) {

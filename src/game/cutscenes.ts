@@ -340,5 +340,41 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
     },
   ];
 
-  return { intro, m1End, m2Intro, m2End, m3Intro, m3End };
+  const h2 = outpost.hab2.center;
+  const m4Intro: Shot[] = [
+    {
+      dur: 7,
+      sub: 'cs.m4_intro_1',
+      vo: 'cs_m4_intro_1',
+      // A slow orbit around the small lander the crew has been sleeping in.
+      cam: orbit(pad, 13, 2.5, 4.0, 4.9, 3),
+    },
+    {
+      dur: 8,
+      sub: 'cs.m4_intro_2',
+      vo: 'cs_m4_intro_2',
+      // Low push in over the build pad to the packed module.
+      cam: move(v(h2.x - 9, h2.y + 1.6, h2.z + 9), v(h2.x - 4.5, h2.y + 2.2, h2.z + 2.5), v(h2.x, h2.y + 2.4, h2.z - 2.5), v(h2.x, h2.y + 3, h2.z - 3)),
+    },
+  ];
+
+  const m4End: Shot[] = [
+    {
+      dur: 11,
+      sub: 'cs.m4_end',
+      vo: 'cs_m4_end',
+      // Around the new module, its windows glowing, rising to see the whole outpost.
+      cam: (k, cam) => {
+        const e = ease(k);
+        const a = 1.2 + e * 1.5;
+        const r = 12 + e * 14;
+        const x = h2.x + Math.cos(a) * r;
+        const z = h2.z + Math.sin(a) * r;
+        cam.position.set(x, Math.max(heightAt(x, z) + 1.4, h2.y + 2 + e * 9), z);
+        cam.lookAt(h2.x - e * 4, h2.y + 3, h2.z - e * 6);
+      },
+    },
+  ];
+
+  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End };
 }

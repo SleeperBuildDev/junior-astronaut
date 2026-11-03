@@ -6,6 +6,9 @@ import { cardFor, CARDS } from '../game/knowledge';
 import { life, O2_STEPS, o2Step, SAFE_O2, startWater, type SysState } from '../game/lifesupport';
 import { aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState } from '../game/power';
 import { MISSION_COUNT, progress } from '../game/save';
+import { blockers, build, built, FACILITIES, kits, type FacilityId } from '../game/construction';
+import { CREW, crew } from '../game/crew';
+import { choosePressure, COMFORT, connectLines, fillWaterWalls, habitat, heatersOn, installBeds, nudgeTemp, PRESSURES, WATER_WALL_LITRES } from '../game/habitat';
 import {
   cardPopup,
   cinema,
@@ -51,6 +54,7 @@ const CONTROLS: [string, string][] = [
   ['E', 'ctrl.use'],
   ['F', 'ctrl.light'],
   ['K', 'ctrl.kc'],
+  ['C', 'ctrl.crew'],
   ['Esc', 'ctrl.pause'],
   ['↑ ↓ ← →', 'ctrl.arrows'],
 ];
@@ -394,7 +398,7 @@ function PowerTerminal({ actions }: { actions: Actions }) {
             <span class="sys-state">{p.planLocked ? t('pw.locked') : ''}</span>
           </div>
           <div class="load-list">
-            {LOADS.map((l) => (
+            {LOADS.filter((l) => !l.extra || p.loads[l.id]).map((l) => (
               <button class={`load ${p.loads[l.id] ? 'on' : 'off'}`} disabled={l.essential || p.planLocked} onClick={() => setLoad(l.id, !p.loads[l.id])}>
                 <span class="sw">{p.loads[l.id] ? t('pw.on') : t('pw.off')}</span>
                 <span class="nm">{t('load.' + l.id)}</span>
@@ -511,6 +515,246 @@ function ArrayPanel({ actions }: { actions: Actions }) {
           <small>{a.tracking ? t('arr.tracking') : t('arr.cos')}</small>
         </li>
       </ol>
+    </div>
+  );
+}
+
+function BuildTerminal({ actions }: { actions: Actions }) {
+  const [sel, setSel] = useState<FacilityId>('hab');
+  const n = missionNumber.value;
+  const f = FACILITIES.find((x) => x.id === sel)!;
+  const why = blockers(f, n);
+  const battery = power.value.batteryKWh;
+  const check = (ok: boolean, text: string) => (
+    <li class={ok ? 'ok' : 'bad'}>
+      {ok ? '✓' : '✗'} {text}
+    </li>
+  );
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal build-term">
+        <div class="modal-head">
+          <h2>{t('bt.title')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <div class="bt-res">
+          <span>
+            📦 {t('bt.kits')} <b>{num(kits.value)}</b>
+          </span>
+          <span>
+            🔋 {t('bt.energy')} <b>{num(Math.round(battery))} kWh</b>
+          </span>
+        </div>
+        <div class="bt-grid">
+          <div class="bt-list">
+            {FACILITIES.map((x) => {
+              const locked = n < x.unlock;
+              const done = built.value.includes(x.id);
+              return (
+                <button class={`bt-item ${sel === x.id ? 'sel' : ''} ${locked ? 'locked' : ''}`} onClick={() => setSel(x.id)}>
+                  <span class="bt-icon">{locked ? '🔒' : x.icon}</span>
+                  <span class="bt-name">{t('fac.' + x.id)}</span>
+                  <small>{done ? t('bt.built') : locked ? t('bt.unlocks', { n: num(x.unlock) }) : `${num(x.kits)} 📦`}</small>
+                </button>
+              );
+            })}
+          </div>
+          <div class="bt-detail">
+            <h3>
+              {f.icon} {t('fac.' + f.id)}
+            </h3>
+            <p>{t('fac.' + f.id + '.desc')}</p>
+            <table class="bt-cost">
+              <tbody>
+              <tr>
+                <td>{t('bt.costKits')}</td>
+                <td>{num(f.kits)} 📦</td>
+              </tr>
+              <tr>
+                <td>{t('bt.costEnergy')}</td>
+                <td>{num(f.kwh)} kWh</td>
+              </tr>
+              <tr>
+                <td>{t('bt.time')}</td>
+                <td>{t('bt.hours', { n: num(f.hours) })}</td>
+              </tr>
+              <tr>
+                <td>{t('bt.run')}</td>
+                <td>{f.runKW < 0 ? t('bt.makes', { kw: num(-f.runKW) }) : `${f.runKW.toFixed(1)} kW`}</td>
+              </tr>
+              </tbody>
+            </table>
+            <p class="bt-effect">
+              <b>{t('bt.effect')}</b> {t('fac.' + f.id + '.effect')}
+            </p>
+            <ul class="bt-checks">
+              {n < f.unlock ? check(false, t('bt.lockedWhy', { n: num(f.unlock) })) : null}
+              {check(kits.value >= f.kits, t('bt.needKits', { need: num(f.kits), have: num(kits.value) }))}
+              {check(battery >= f.kwh, t('bt.needEnergy', { need: num(f.kwh), have: num(Math.round(battery)) }))}
+            </ul>
+            {built.value.includes(f.id) ? (
+              <p class="bt-done">✓ {t('bt.built')}</p>
+            ) : (
+              <button class="btn primary small" data-action="build" disabled={why.length > 0} onClick={() => build(f.id, n) && actions.closeTerminal()}>
+                {t('bt.build', { name: t('fac.' + f.id) })}
+              </button>
+            )}
+            <small class="bt-note">{t('bt.note')}</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HabTerminal({ actions }: { actions: Actions }) {
+  const h = habitat.value;
+  const comfy = h.setTemp >= COMFORT.min && h.setTemp <= COMFORT.max;
+  const heated = h.heaters && Math.abs(h.tempC - h.setTemp) < 0.6;
+  const [msg, setMsg] = useState<string | null>(null);
+  const pState = h.pressurized ? 'online' : h.targetKPa ? 'starting' : 'offline';
+  const tState = heated ? 'online' : h.heaters ? 'starting' : 'offline';
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal hab-term">
+        <div class="modal-head">
+          <h2>{t('ht.title')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <div class="gauges three">
+          <div class="gauge">
+            <span>{t('ht.pressure')}</span>
+            <b class={h.pressurized ? 'good' : 'low'}>{h.kpa.toFixed(0)} kPa</b>
+            <div class="bar">
+              <i style={{ width: `${Math.min(100, (h.kpa / 101.3) * 100)}%` }} />
+            </div>
+            <small>{t('ht.earth')}</small>
+          </div>
+          <div class="gauge">
+            <span>{t('ht.temp')}</span>
+            <b class={heated ? 'good' : 'low'}>{h.tempC.toFixed(0)} °C</b>
+            <small>{t('ht.comfort', { a: num(COMFORT.min), b: num(COMFORT.max) })}</small>
+          </div>
+          <div class="gauge">
+            <span>{t('ht.beds')}</span>
+            <b class={h.beds ? 'good' : 'low'}>{h.beds ? num(4) : num(0)} / {num(4)}</b>
+            <small>{t('ht.crew4')}</small>
+          </div>
+        </div>
+        <SysRow name={'1. ' + t('ht.pTitle')} state={pState} label={t('ht.state.' + pState)}>
+          {h.pressurized ? (
+            <small>{t('ht.pDone', { kpa: num(h.targetKPa) })}</small>
+          ) : h.targetKPa ? (
+            <>
+              <small>{h.kpa < h.targetKPa ? t('ht.filling') : t('ht.leakTest')}</small>
+              <div class="bar hold">
+                <i style={{ width: `${Math.round((h.kpa < h.targetKPa ? h.kpa / h.targetKPa : h.leak) * 100)}%` }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <small>{t('ht.pAsk')}</small>
+              <div class="choice">
+                {PRESSURES.map((o) => (
+                  <button
+                    class="btn small"
+                    data-kpa={o.kpa}
+                    onClick={() => {
+                      const ok = choosePressure(o.kpa);
+                      setMsg(ok ? null : 'ht.pBad');
+                    }}
+                  >
+                    <b>{num(o.kpa)} kPa</b>
+                    <small>{t('ht.p.' + o.id)}</small>
+                  </button>
+                ))}
+              </div>
+              {msg ? <p class="fault">{t(msg)}</p> : null}
+            </>
+          )}
+        </SysRow>
+        <SysRow name={'2. ' + t('ht.tTitle')} state={tState} label={t('ht.state.' + tState)}>
+          {!h.pressurized ? (
+            <small>{t('ht.tWait')}</small>
+          ) : (
+            <div class="thermo">
+              <button class="btn small" disabled={h.heaters} onClick={() => nudgeTemp(-1)}>
+                −
+              </button>
+              <b class={comfy ? 'good' : 'low'}>{num(h.setTemp)} °C</b>
+              <button class="btn small" disabled={h.heaters} onClick={() => nudgeTemp(1)}>
+                +
+              </button>
+              <button class="btn small primary" data-action="heaters" disabled={h.heaters || !comfy} onClick={heatersOn}>
+                {h.heaters ? t('ht.heating') : t('ht.heatOn')}
+              </button>
+              <small>{comfy ? t('ht.tWhy') : t('ht.tBad', { a: num(COMFORT.min), b: num(COMFORT.max) })}</small>
+            </div>
+          )}
+        </SysRow>
+        <div class={`sys ${heated && h.lines && h.water && h.beds ? 'online' : heated ? 'starting' : 'offline'}`}>
+          <div class="sys-head">
+            <span class="led" />
+            <b>3. {t('ht.oTitle')}</b>
+          </div>
+          <ol class="checklist">
+            {(
+              [
+                ['lines', h.lines, connectLines, 'ht.lines', 'ht.lines.why'],
+                ['water', h.water, fillWaterWalls, 'ht.water', 'ht.water.why'],
+                ['beds', h.beds, installBeds, 'ht.bedsDo', 'ht.beds.why'],
+              ] as const
+            ).map(([id, done, fn, label, why]) => (
+              <li class={done ? 'done' : heated ? 'next' : ''}>
+                <button class="btn small" data-action={id} disabled={done || !heated} onClick={fn}>
+                  {done ? '✓' : '○'} {t(label, { l: num(WATER_WALL_LITRES) })}
+                </button>
+                {heated ? <small>{t(why)}</small> : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CrewPanel() {
+  const c = crew.value;
+  const h = habitat.value;
+  return (
+    <div class="crew">
+      <div class="crew-grid">
+        {CREW.map((m) => {
+          const s = c[m.id];
+          return (
+            <div class={`crew-card ${m.id === 'eng' ? 'you' : ''}`}>
+              <div class="crew-head">
+                <span class="crew-icon">{m.icon}</span>
+                <div>
+                  <b>{t('crew.name.' + m.id)}</b>
+                  <small>{t('crew.role.' + m.id)}</small>
+                </div>
+              </div>
+              <div class="crew-row">
+                <span>{t('crew.where')}</span>
+                <b>{t('crew.at.' + s.where)}</b>
+              </div>
+              <Bar label={t('hud.health')} value={s.health} unit="%" warnAt={60} critAt={30} />
+              <p class={`crew-status ${s.status === 'crew.st.safe' ? 'good' : 'warn'}`}>{t(s.status)}</p>
+              <small class="crew-job">{t('crew.job.' + m.id)}</small>
+            </div>
+          );
+        })}
+      </div>
+      <div class="crew-alerts">
+        <b>{t('crew.alerts')}</b>
+        {h.crewIn ? <p class="good">✓ {t('crew.alert.ok')}</p> : <p class="warn">⚠ {t('crew.alert.cramped')}</p>}
+      </div>
     </div>
   );
 }
@@ -701,6 +945,7 @@ function Panel({ actions }: { actions: Actions }) {
         {p === 'knowledge' && <KnowledgeCenter />}
         {p === 'credits' && <Credits />}
         {p === 'missions' && <MissionSelect actions={actions} />}
+        {p === 'crew' && <CrewPanel />}
       </div>
     </div>
   );
@@ -919,6 +1164,8 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'playing' && terminal.value === 'life' && <Terminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'power' && <PowerTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'array' && <ArrayPanel actions={actions} />}
+      {sc === 'playing' && terminal.value === 'build' && <BuildTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'hab' && <HabTerminal actions={actions} />}
       {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>
