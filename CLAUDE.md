@@ -39,6 +39,16 @@ Done and tested (git history has one commit per milestone):
   with free look, battery; W/S/A/D/Space, E in/out; dashboard HUD), 3 science sites in `LAYOUT.sites`
   (pale anorthosite on a crater rim, ejecta boulder, sunlit rim of a shadowed crater), field-notes
   multiple choice with hints, hold-E sampling, lab sample port + analysis terminal (ISRU).
+- **Mission 8 — Emergency Response** (day 19): data-driven emergencies in `src/game/emergency.ts`
+  (solar tower hit by cargo-lander plume grit → shed loads, diagnose, hold-E repair; HAB-2 leak →
+  close hatch, ultrasonic detector HUD (dB rises near the random leak fitting), hold-E patch,
+  repressurise from the O₂ reserve; HAB-1 cooling pump failure → switch to backup pump B, diagnose,
+  fit spare motor). Each: alarm (klaxon + banner + auto-opened alert terminal with severity, affected
+  systems, live reading and 3 responses; wrong ones cost something real), diagnosis, repair, then an
+  after-action report terminal (what/why/prevent + tries, time, worst value). New world objects:
+  tower damage overlays, 3 leak fittings on HAB-2, cooling radiator + pump skid east of the
+  life-support unit. BASE STATUS shows HAB-2 air, HAB-1 temp and O₂ reserve from Mission 8.
+  Mission 8 uses mission-time timers (`after()` in update) so pausing pauses them.
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
@@ -53,7 +63,7 @@ Done and tested (git history has one commit per milestone):
 - Cutscenes: Mission 1 landing intro (descent + ballistic dust), Mission 1 ending, Mission 2 intro + ending.
 - Procedural sound effects (Web Audio), machinery hum, ambient music.
 
-**Remaining (the main job): Missions 8–9** plus the systems they need — see "Roadmap" below.
+**Remaining (the main job): Mission 9** plus the systems they need — see "Roadmap" below.
 
 ## Run, test, build
 
@@ -69,7 +79,7 @@ npm run build        # production build to dist/ (base './', works on any static
 - **The Browser pane throttles rendering when hidden**, so its FPS is meaningless. Measure with
   the Playwright scripts, which drive the installed Chrome on the real GPU (no browser download):
   - `node qa/perf.mjs` — FPS / triangles / draw calls per quality preset (+ console errors).
-  - `node qa/mission1.mjs`, `node qa/mission2.mjs`, `node qa/mission3.mjs [en|my]`, `node qa/mission4.mjs [en|my]`, `node qa/mission5.mjs [en|my]`, `node qa/mission6.mjs [en|my]`, `node qa/mission7.mjs [en|my]` — automated playthroughs with screenshots.
+  - `node qa/mission1.mjs`, `node qa/mission2.mjs`, `node qa/mission3.mjs [en|my]`, `node qa/mission4.mjs [en|my]`, `node qa/mission5.mjs [en|my]`, `node qa/mission6.mjs [en|my]`, `node qa/mission7.mjs [en|my]`, `node qa/mission8.mjs [en|my]` — automated playthroughs with screenshots.
   - `node qa/cutscenes.mjs [en|my]` — screenshots of every cutscene.
   - `node qa/shots.mjs <prefix>` — eye-level beauty shots of the outpost.
   - `node qa/guide.mjs [en|my]` — guidance marker + language screenshots.
@@ -78,7 +88,7 @@ npm run build        # production build to dist/ (base './', works on any static
   cut(name), teleport(x,z,yaw,pitch), look(yaw,pitch), key(code,ms), holdE(ms), closeTerminal,
   state, info, gpu, show(name,on), shadows(on), quality(q), sfx(name), audio, cutscene,
   mission(n)` (jump to mission n), `goTo(id, dist, angle?)` (stand in front of an interactable),
-  `power, habitat, greenhouse, rad, crew, science, rover, roverTo(x,z,yaw), drive(ms), speed, progress`. Add `?unlock=N` to any URL to open missions up to N.
+  `power, habitat, greenhouse, rad, crew, science, emergency, rover, roverTo(x,z,yaw), drive(ms), speed, progress`. Add `?unlock=N` to any URL to open missions up to N.
   In QA mode movement works without pointer lock. Extend these hooks for new missions.
 - Show the owner previews along the way: screenshot with the QA scripts, then send the PNGs
   (SendUserFile). He asked for previews during development.
@@ -108,7 +118,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/player/input.ts` | Keyboard by `event.code` (works with Burmese layout), pointer lock (raw input), blur/visibility clearing |
 | `src/player/player.ts` | Rapier kinematic character controller, Moon gravity 1.62, walk/sprint/jump, head bob, landing dip, footstep/jump callbacks, boundary |
 | `src/player/physics.ts` | Rapier world: terrain trimesh + collider specs |
-| `src/game/state.ts` | Signals: screen, panel, suit, mission, prompt, warning, comms, knowledge, cardPopup, missionNumber, holdProgress, waypoint, cinema, `terminal` ('life'/'power'/'array'/'build'/'hab'/'gh'/'rad'/'shelter'/'notes'/'lab'), `drive` (rover dashboard), `gameSpeed` (game s per real s, normal 30) |
+| `src/game/state.ts` | Signals: screen, panel, suit, mission, prompt, warning, comms, knowledge, cardPopup, missionNumber, holdProgress, waypoint, cinema, `terminal` ('life'/'power'/'array'/'build'/'hab'/'gh'/'rad'/'shelter'/'notes'/'lab'/'alert'/'diag'/'aar'), `drive` (rover dashboard), `gameSpeed` (game s per real s, normal 30) |
 | `src/game/mission.ts` | `GameMission` interface (begin/update/interact/label/guide/hold) every mission implements |
 | `src/game/mission1.ts` … `mission3.ts` | Mission classes (pattern below); each owns its guide targets |
 | `src/game/save.ts` | `progress` (reached mission, knowledge) in localStorage, `MISSION_COUNT`, `missionDone(n)` |
@@ -118,6 +128,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/game/greenhouse.ts` | Greenhouse + food: crops, light cycles, pH alarm, growth, harvest, `foodDays`; `greenhouseDone()` |
 | `src/game/radiation.ts` | Radiation: survey readings, berms, space weather (warning → storm → clear), shelter doses |
 | `src/game/science.ts` | Mission 7 sites (new/noted/sampled), field-notes answers, delivery, analysis |
+| `src/game/emergency.ts` | Mission 8 emergencies: `EMERGENCIES` data, phases alert→diagnose→repair→recover→report, cabin kPa/temp/O₂ reserve, `detector` signal |
 | `src/player/rover.ts` | Drivable rover (see Mission 7) |
 | `src/game/power.ts` | Power simulation: towers (deploy/aim/track), bus, battery (100 kWh), loads, `confirmPlan`, `arrayPanel` |
 | `src/game/lifesupport.ts` | Life-support simulation + terminal actions (`life` signal, `terminalOpen`) |
@@ -177,6 +188,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 - Event hooks: `onBuild` (construction) supports several listeners; the other `on*Event` hooks in
   power/habitat/greenhouse keep ONE listener (one mission each) — use a list if two missions need one.
 - Registry entries are added in main.ts; each mission's `end()` clears its timers on restart/leave.
+- Terminals opened by a timer (alarms, reports) free the mouse through the `terminal` effect in main.ts.
 - Kokoro voices: Mission Control `am_michael`, narrator `af_heart`, crew `cr_cmdr_*` bf_emma,
   `cr_sci_*` am_adam, `cr_med_*` af_sarah (make_vo.py picks by key prefix).
 - Ultracode may be on, but the owner asked to keep multi-agent work to big decisions + one small

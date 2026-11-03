@@ -314,7 +314,9 @@ export type Sfx =
   | 'breaker'
   | 'powerdown'
   | 'inflate'
-  | 'geiger';
+  | 'geiger'
+  | 'klaxon'
+  | 'tick';
 
 let lastHover = 0;
 
@@ -416,6 +418,17 @@ export function sfx(name: Sfx, strength = 1) {
     case 'geiger':
       // A dosimeter crackle: a few sharp random clicks.
       for (let i = 0; i < 1 + Math.floor(Math.random() * 3); i++) burst({ type: 'highpass', freq: 3500, dur: 0.012, gain: 0.05, at: Math.random() * 0.12 });
+      break;
+    case 'klaxon':
+      // Emergency alarm: a rising and falling warble, three times (a bigger alarm than 'alarm').
+      for (let i = 0; i < 3; i++) {
+        note({ type: 'square', freq: 650, freqEnd: 1250, dur: 0.42, gain: 0.032, at: i * 0.9 });
+        note({ type: 'square', freq: 1250, freqEnd: 650, dur: 0.42, gain: 0.032, at: i * 0.9 + 0.43 });
+      }
+      break;
+    case 'tick':
+      // Leak detector: a short tone whose pitch rises with the signal (strength 0..1).
+      note({ type: 'sine', freq: 500 + 1700 * strength, dur: 0.05, gain: 0.03 });
       break;
     case 'powerdown':
       note({ type: 'sawtooth', freq: 320, freqEnd: 60, dur: 1.6, gain: 0.03 });

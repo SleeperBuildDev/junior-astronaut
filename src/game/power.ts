@@ -40,6 +40,8 @@ export interface ArrayState {
   /** Direction the panels face, degrees (same convention as sunYaw()). */
   yaw: number;
   tracking: boolean;
+  /** Fraction of the panels still working (1 = all; damage lowers it). */
+  health?: number;
 }
 
 /** Stowed towers point the wrong way, each by a different amount. */
@@ -95,7 +97,7 @@ export function aimError(a: ArrayState) {
 /** Sunlight falling on a flat panel scales with the cosine of the angle to the Sun. */
 export function arrayKW(a: ArrayState, sun = power.value.sun) {
   if (a.deploy <= 0) return 0;
-  return ARRAY_KW * a.deploy * Math.max(0, Math.cos((aimError(a) * Math.PI) / 180)) * sun;
+  return ARRAY_KW * a.deploy * (a.health ?? 1) * Math.max(0, Math.cos((aimError(a) * Math.PI) / 180)) * sun;
 }
 
 export function solarKW(p = power.value) {
@@ -115,6 +117,11 @@ export function hoursLeft(p = power.value) {
 function patchArray(i: number, patch: Partial<ArrayState>) {
   const arrays = power.value.arrays.map((a, k) => (k === i ? { ...a, ...patch } : a));
   power.value = { ...power.value, arrays };
+}
+
+/** Damage or repair a tower (0 = no output, 1 = all panels working). */
+export function setArrayHealth(i: number, health: number) {
+  patchArray(i, { health });
 }
 
 export function deployArray(i: number) {

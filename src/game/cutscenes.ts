@@ -479,5 +479,38 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
     },
   ];
 
-  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End, m6Intro, m6End, m7Intro, m7End };
+  const tower = outpost.arrays[1].pos;
+  const pump = outpost.emergency.pumpPos;
+  const m8Intro: Shot[] = [
+    {
+      dur: 8,
+      sub: 'cs.m8_intro_1',
+      vo: 'cs_m8_intro_1',
+      // A calm, slow pass over the busy outpost.
+      cam: orbit(hab, 34, 13, 2.4, 1.6, 2),
+    },
+    {
+      dur: 8.5,
+      sub: 'cs.m8_intro_2',
+      vo: 'cs_m8_intro_2',
+      // Low under the solar towers, looking up at the panels against the black sky.
+      cam: move(v(tower.x - 14, tower.y + 1.8, tower.z + 12), v(tower.x - 6, tower.y + 1.4, tower.z + 6), v(tower.x, tower.y + 4, tower.z), v(tower.x, tower.y + 9, tower.z)),
+    },
+  ];
+
+  const m8End: Shot[] = [
+    {
+      dur: 11.5,
+      sub: 'cs.m8_end',
+      vo: 'cs_m8_end',
+      // From the repaired cooling pumps, rise to see the whole outpost working again.
+      cam: (k, cam) => {
+        const e = ease(k);
+        cam.position.set(pump.x - 4 + e * 6, pump.y + 0.6 + e * 18, pump.z + 5 + e * 22);
+        cam.lookAt(new THREE.Vector3(pump.x, pump.y, pump.z).lerp(new THREE.Vector3(hab.x, hab.y + 2, hab.z), e));
+      },
+    },
+  ];
+
+  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End, m6Intro, m6End, m7Intro, m7End, m8Intro, m8End };
 }

@@ -52,6 +52,22 @@ export interface Outpost {
     sites: { marker: THREE.Group; light: THREE.Mesh; pos: THREE.Vector3 }[];
     labPortPos: THREE.Vector3;
   };
+  emergency: EmergencyRig;
+}
+
+/** Mission 8: damage on the solar towers, leak-check fittings on HAB-2, the cooling radiator. */
+export interface EmergencyRig {
+  /** Crack and grit overlays on tower 2 (shorted) and tower 3 (lost cells). */
+  towerDamage: THREE.Mesh[];
+  /** Fittings you can check for a leak (world positions) and the patch shown on each. */
+  leaks: THREE.Vector3[];
+  patches: THREE.Mesh[];
+  /** All leak fittings and patches (only on the inflated module, Mission 8 on). */
+  fittings: THREE.Group;
+  pumpPos: THREE.Vector3;
+  pumpLights: { a: THREE.Mesh; b: THREE.Mesh };
+  /** Spinning fan covers on the two pump motors. */
+  rotors: { a: THREE.Object3D; b: THREE.Object3D };
 }
 
 /** Mission 6: radiation monitor, wall-survey tripods and regolith berms around HAB-2. */
@@ -176,6 +192,65 @@ function panelTexture() {
     grad.addColorStop(1, 'rgba(120,112,100,0.35)');
     g.fillStyle = grad;
     g.fillRect(0, 380, 512, 132);
+  });
+}
+
+/** Sandblasted solar cells: dark pits, star cracks and a dusty haze (transparent). */
+function damageTexture(seed: number) {
+  return canvasTexture(256, 320, (g) => {
+    let r = seed;
+    const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+    const haze = g.createRadialGradient(128, 150, 10, 128, 150, 170);
+    haze.addColorStop(0, 'rgba(70,62,52,0.85)');
+    haze.addColorStop(0.6, 'rgba(110,100,86,0.45)');
+    haze.addColorStop(1, 'rgba(120,110,95,0)');
+    g.fillStyle = haze;
+    g.fillRect(0, 0, 256, 320);
+    for (let i = 0; i < 160; i++) {
+      g.fillStyle = `rgba(20,18,16,${0.5 + rnd() * 0.5})`;
+      g.beginPath();
+      g.arc(rnd() * 256, rnd() * 320, 1 + rnd() * 3.5, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.strokeStyle = 'rgba(225,230,240,0.85)';
+    g.lineWidth = 1.4;
+    for (let k = 0; k < 6; k++) {
+      const cx = 30 + rnd() * 196;
+      const cy = 30 + rnd() * 260;
+      for (let j = 0; j < 6; j++) {
+        const a = rnd() * Math.PI * 2;
+        const len = 12 + rnd() * 40;
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(a) * len * 0.5 + (rnd() - 0.5) * 8, cy + Math.sin(a) * len * 0.5 + (rnd() - 0.5) * 8);
+        g.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+        g.stroke();
+      }
+      g.fillStyle = 'rgba(10,8,6,0.95)';
+      g.beginPath();
+      g.arc(cx, cy, 3 + rnd() * 3, 0, Math.PI * 2);
+      g.fill();
+    }
+  });
+}
+
+/** Radiator panel: white coating with the coolant tubes running back and forth. */
+function radiatorTexture() {
+  return canvasTexture(128, 256, (g) => {
+    g.fillStyle = '#eef0f2';
+    g.fillRect(0, 0, 128, 256);
+    g.strokeStyle = '#b9bec6';
+    g.lineWidth = 3;
+    g.beginPath();
+    for (let i = 0; i < 9; i++) {
+      const x = 12 + i * 13;
+      g.moveTo(x, 8);
+      g.lineTo(x, 248);
+    }
+    g.stroke();
+    g.fillStyle = '#9aa1ab';
+    g.fillRect(0, 0, 128, 7);
+    g.fillRect(0, 249, 128, 7);
   });
 }
 
@@ -994,6 +1069,117 @@ export function buildOutpost(models: OutpostModels): Outpost {
   mesh(new THREE.BoxGeometry(0.04, 0.08, 0.72), mats.hazard, group, [samplePortX - 0.09, by + 1.2, samplePortZ]);
   interactables.push({ id: 'lab-port', object: port, label: () => 'p.labPort', minMission: 7 });
 
+  // ---------- Mission 8: tower damage, HAB-2 leak-check fittings, cooling radiator + pumps ----------
+  const towerDamage = [1, 2].map((ti, k) => {
+    const wing = arrays[ti].wings[k];
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.2, 2.8),
+      new THREE.MeshStandardMaterial({ map: damageTexture(7 + ti * 31), transparent: true, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2 }),
+    );
+    m.position.set(k ? 0.3 : -0.25, -2.2 - k * 1.4, 0.035);
+    m.castShadow = false;
+    m.visible = false;
+    wing.add(m);
+    return m;
+  });
+  const fittingMat = new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 0.5, metalness: 0.6 });
+  const patchMat = new THREE.MeshStandardMaterial({ color: 0xb8b2a4, roughness: 0.95 });
+  const leakSpots: { pos: THREE.Vector3; n: THREE.Vector3 }[] = [
+    // tunnel seal (east side), inflation-line fitting (west), lower shell seam (east)
+    { pos: new THREE.Vector3(hx + 0.81, by + 2.5, bz + 3.2), n: new THREE.Vector3(0.81, -0.5, 0) },
+    { pos: new THREE.Vector3(hx - 1.81, by + 1.5, bz + 5.6), n: new THREE.Vector3(-1.81, -1.5, 0) },
+    { pos: new THREE.Vector3(hx + 1.81, by + 1.5, bz + 4.6), n: new THREE.Vector3(1.81, -1.5, 0) },
+  ];
+  const leaks: THREE.Vector3[] = [];
+  const patches: THREE.Mesh[] = [];
+  const fittings = new THREE.Group();
+  group.add(fittings);
+  leakSpots.forEach(({ pos, n }, i) => {
+    n.normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+    const base = pos.clone().addScaledVector(n, 0.05);
+    const f = mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.1, 16), fittingMat, fittings, [base.x, base.y, base.z]);
+    f.quaternion.copy(q);
+    const ring = mesh(new THREE.TorusGeometry(0.17, 0.025, 6, 20), mats.hazard, fittings, [base.x, base.y, base.z]);
+    ring.quaternion.copy(q).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)));
+    const capPos = pos.clone().addScaledVector(n, 0.11);
+    mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.06, 6), mats.alu, fittings, [capPos.x, capPos.y, capPos.z]).quaternion.copy(q);
+    const pp = pos.clone().addScaledVector(n, 0.03);
+    const pm = mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.03, 20), patchMat, fittings, [pp.x, pp.y, pp.z]);
+    pm.quaternion.copy(q);
+    pm.visible = false;
+    patches.push(pm);
+    leaks.push(pos.clone().addScaledVector(n, 0.1));
+    interactables.push({ id: 'leak-' + i, object: f, label: () => 'p.fitting', minMission: 8 });
+  });
+
+  // Cooling radiator east of the life-support unit. The panels stand edge-on to the low
+  // Sun, so they see mostly cold sky and can throw the habitat's heat away as infrared.
+  const rx = bx + 20.5;
+  const rz = bz + 2.5;
+  const ry = heightAt(rx, rz);
+  const radGroup = new THREE.Group();
+  place(radGroup, rx, rz, Math.atan2(-SUN_DIR.z, SUN_DIR.x), ry);
+  const radMat = new THREE.MeshStandardMaterial({ map: radiatorTexture(), roughness: 0.45, metalness: 0.05 });
+  mesh(new THREE.BoxGeometry(1.6, 0.22, 4.4), mats.dark, radGroup, [0, 0.11, 0]);
+  for (const z of [-1.5, 0, 1.5]) {
+    mesh(new THREE.BoxGeometry(0.05, 2.7, 1.25), radMat, radGroup, [0, 1.65, z]);
+    strut(new THREE.Vector3(0, 0.22, z - 0.6), new THREE.Vector3(0, 3.0, z - 0.6), 0.03, mats.alu, radGroup);
+    strut(new THREE.Vector3(0, 0.22, z + 0.6), new THREE.Vector3(0, 3.0, z + 0.6), 0.03, mats.alu, radGroup);
+  }
+  // Supply (top) and return (bottom) manifolds
+  strut(new THREE.Vector3(0, 3.02, -2.2), new THREE.Vector3(0, 3.02, 2.2), 0.06, mats.alu, radGroup);
+  strut(new THREE.Vector3(0, 0.3, -2.2), new THREE.Vector3(0, 0.3, 2.2), 0.06, mats.alu, radGroup);
+  strut(new THREE.Vector3(0, 0.3, 2.2), new THREE.Vector3(0, 3.02, 2.2), 0.06, mats.alu, radGroup);
+  colliders.push({ kind: 'box', center: new THREE.Vector3(rx, ry + 1.6, rz), half: new THREE.Vector3(0.8, 1.6, 2.2), quat: radGroup.quaternion.clone() });
+  // Pump skid on the west side with pump A (running) and pump B (standby)
+  const px = rx - 2.2;
+  const pz = rz;
+  const py = heightAt(px, pz);
+  const skid = new THREE.Group();
+  place(skid, px, pz, Math.PI / 2, py);
+  mesh(new THREE.BoxGeometry(2.6, 0.18, 1.1), mats.dark, skid, [0, 0.09, 0]);
+  const pumpUnit = (x: number, name: string) => {
+    mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.7, 20), mats.white, skid, [x, 0.55, 0], [0, 0, Math.PI / 2]);
+    mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 16), mats.alu, skid, [x, 0.55, 0.32], [Math.PI / 2, 0, 0]);
+    const rotor = new THREE.Group();
+    rotor.position.set(x + 0.37, 0.55, 0);
+    skid.add(rotor);
+    const fan = mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 16), mats.dark, rotor, [0, 0, 0], [0, 0, Math.PI / 2]);
+    fan.castShadow = false;
+    mesh(new THREE.BoxGeometry(0.06, 0.4, 0.06), mats.hazard, rotor, [0.03, 0, 0]);
+    const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.14), new THREE.MeshStandardMaterial({ map: labelTexture(name), roughness: 0.8 }));
+    tag.position.set(x, 0.86, 0.01);
+    tag.rotation.x = -Math.PI / 2;
+    skid.add(tag);
+    return rotor;
+  };
+  const rotorA = pumpUnit(-0.6, 'PUMP A');
+  const rotorB = pumpUnit(0.6, 'PUMP B');
+  // Coolant pipes from the skid to the radiator manifolds and to the life-support unit
+  tube([new THREE.Vector3(px, py + 0.55, pz + 0.3), new THREE.Vector3(px + 1.2, py + 0.4, pz + 0.3), new THREE.Vector3(rx, ry + 0.3, rz + 0.3)], 0.05, mats.alu, group);
+  tube([new THREE.Vector3(px, py + 0.55, pz - 0.3), new THREE.Vector3(px - 1.5, py + 0.12, pz - 0.6), new THREE.Vector3(lx + 2.5, by + 0.6, lz - 0.6)], 0.05, mats.rubber, group);
+  // Control box on a post in front of pump A, with a light for each pump
+  const cbx = px - 0.95;
+  const cbz = pz + 0.6;
+  strut(new THREE.Vector3(cbx, py, cbz), new THREE.Vector3(cbx, py + 1.0, cbz), 0.04, mats.alu, group);
+  const pumpBox = mesh(new RoundedBoxGeometry(0.22, 0.5, 0.6, 2, 0.03), mats.white, group, [cbx, py + 1.2, cbz]);
+  mesh(new THREE.PlaneGeometry(0.42, 0.28), mats.cyan, group, [cbx - 0.115, py + 1.22, cbz], [0, -Math.PI / 2, 0]).castShadow = false;
+  const lightA = mesh(new THREE.SphereGeometry(0.045, 10, 8), mats.green, group, [cbx, py + 1.5, cbz - 0.16]);
+  const lightB = mesh(new THREE.SphereGeometry(0.045, 10, 8), mats.amber, group, [cbx, py + 1.5, cbz + 0.16]);
+  interactables.push({ id: 'pump-a', object: pumpBox, label: () => 'p.pump', minMission: 8 });
+  colliders.push({ kind: 'box', center: new THREE.Vector3(px, py + 0.45, pz), half: new THREE.Vector3(0.6, 0.45, 1.35) });
+  colliders.push({ kind: 'cylinder', center: new THREE.Vector3(cbx, py + 0.7, cbz), halfHeight: 0.7, radius: 0.25 });
+  const emergencyRig: EmergencyRig = {
+    towerDamage,
+    leaks,
+    patches,
+    fittings,
+    pumpPos: new THREE.Vector3(cbx - 0.1, py + 1.2, cbz),
+    pumpLights: { a: lightA, b: lightB },
+    rotors: { a: rotorA, b: rotorB },
+  };
+
   let floodLamp: THREE.MeshStandardMaterial | null = null;
   models.floodlight.traverse((c) => {
     const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -1010,6 +1196,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     radiation: radiationRig,
     rover,
     science: { sites, labPortPos: new THREE.Vector3(samplePortX - 0.1, by + 1.45, samplePortZ) },
+    emergency: emergencyRig,
     power: {
       pos: new THREE.Vector3(pduX, by, pduZ),
       terminalPos: local(-2.26, 1.45, 0.55),

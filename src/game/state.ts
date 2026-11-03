@@ -44,7 +44,7 @@ export function unlock(id: string) {
 }
 
 /** The machine screen open on top of the game, if any (the game keeps running behind it). */
-export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab' | 'gh' | 'rad' | 'shelter' | 'notes' | 'lab'>(null);
+export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab' | 'gh' | 'rad' | 'shelter' | 'notes' | 'lab' | 'alert' | 'diag' | 'aar'>(null);
 /** Rover dashboard (shown while driving). */
 export const drive = signal({ driving: false, speed: 0, battery: 100 });
 

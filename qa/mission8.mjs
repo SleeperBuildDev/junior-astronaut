@@ -1,0 +1,143 @@
+// Plays through Mission 8 with QA hooks and screenshots each stage.
+// Usage: node qa/mission8.mjs [en|my]   (dev server must be running)
+import { chromium } from 'playwright-core';
+
+const lang = process.argv[2] ?? 'en';
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e)));
+page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+page.on('response', (r) => r.status() >= 400 && errors.push(r.status() + ' ' + r.url()));
+await page.addInitScript((l) => {
+  const s = JSON.parse(localStorage.getItem('junior-astronaut.settings') || '{}');
+  localStorage.setItem('junior-astronaut.settings', JSON.stringify({ ...s, lang: l }));
+}, lang);
+await page.goto('http://localhost:5173/?qa=1');
+await page.waitForFunction(() => window.__qa?.ready, null, { timeout: 60000 });
+const q = (fn, arg) => page.evaluate(fn, arg);
+const wait = (ms) => page.waitForTimeout(ms);
+const shot = (name) => page.screenshot({ path: `qa/m8_${lang}_${name}.png` });
+const done = () => q(() => [...document.querySelectorAll('.objective li.done')].length);
+const em = () => q(() => window.__qa.emergency());
+const termIs = (name, timeout = 45000) => page.waitForFunction((n) => window.__qa.state().terminal === n, name, { timeout });
+
+await q(() => window.__qa.mission(8));
+await wait(9000);
+await shot('0_intro');
+await q(async () => { await window.__qa.play(); });
+await wait(1000);
+console.log('clock day:', await q(() => document.querySelector('.clock b')?.textContent));
+
+// ---- 1. Solar array damage ----
+await termIs('alert');
+await wait(500);
+await shot('1_alert_solar');
+await page.click('[data-response="2"]');
+await wait(300);
+console.log('wrong response explained:', !!(await q(() => document.querySelector('.em-alert .fault'))));
+await page.click('[data-response="0"]');
+await wait(400);
+console.log('loads shed:', JSON.stringify(await q(() => { const l = window.__qa.power().loads; return { lab: l.lab, rover: l.rover, flood: l.flood, life: l.life }; })));
+await page.click('[data-action="go"]');
+await wait(400);
+// Look up at the damaged tower from the sunny side
+const view = await q(() => {
+  const sy = (window.__qa.power().sunYaw * Math.PI) / 180;
+  const t = { x: 44, z: -26 };
+  const x = t.x + Math.sin(sy) * 11;
+  const z = t.z + Math.cos(sy) * 11;
+  return { x, z, yaw: Math.atan2(-(t.x - x), -(t.z - z)) };
+});
+await q((v) => window.__qa.teleport(v.x, v.z, v.yaw, 0.55), view);
+await wait(1200);
+await shot('2_tower_damage');
+await q(() => window.__qa.goTo('vsat-1', 1.5));
+await wait(600);
+console.log('tower prompt:', await q(() => document.querySelector('.prompt')?.textContent));
+await q(() => window.__qa.key('KeyE', 120));
+await wait(700);
+await page.click('[data-cause="1"]');
+await wait(300);
+console.log('wrong cause hint:', !!(await q(() => document.querySelector('.notes .fault'))));
+await page.click('[data-cause="0"]');
+await wait(400);
+await shot('3_diag_solar');
+await q(() => window.__qa.closeTerminal());
+await wait(300);
+await q(() => window.__qa.holdE(3400));
+await wait(3900);
+console.log('solar after repair:', (await em()).phase, 'tower2 health', (await q(() => window.__qa.power().arrays[1].health)), 'done', await done());
+await termIs('aar', 20000);
+await wait(500);
+await shot('4_report_solar');
+await page.click('[data-action="file"]');
+await wait(500);
+
+// ---- 2. HAB-2 leak ----
+await termIs('alert');
+await wait(400);
+await page.click('[data-response="0"]');
+await wait(300);
+await page.click('[data-action="go"]');
+const leak = (await em()).leak;
+const wrongFit = (leak + 1) % 3;
+await q((i) => window.__qa.goTo('leak-' + i, 1.6), wrongFit);
+await wait(600);
+await q(() => window.__qa.key('KeyE', 120));
+await wait(400);
+console.log('wrong fitting:', await q(() => document.querySelector('.warning')?.textContent), 'detector', await q(() => document.querySelector('.leak-detector b')?.textContent));
+await q((i) => window.__qa.goTo('leak-' + i, 2.6), leak);
+await wait(800);
+await shot('5_leak_hunt');
+await q((i) => window.__qa.goTo('leak-' + i, 1.5), leak);
+await wait(500);
+console.log('near leak detector:', await q(() => document.querySelector('.leak-detector b')?.textContent));
+await q(() => window.__qa.key('KeyE', 120));
+await wait(500);
+console.log('leak found:', (await em()).phase);
+await q(() => window.__qa.holdE(3400));
+await wait(3900);
+console.log('leak after patch:', (await em()).phase, 'kpa', (await em()).kpa.toFixed(1));
+await termIs('aar', 40000);
+await wait(500);
+await shot('6_report_leak');
+await page.click('[data-action="file"]');
+await wait(500);
+
+// ---- 3. Cooling pump ----
+await termIs('alert');
+await wait(400);
+await shot('7_alert_thermal');
+await page.click('[data-response="1"]');
+await wait(300);
+await page.click('[data-response="0"]');
+await wait(300);
+await page.click('[data-action="go"]');
+await q(() => window.__qa.goTo('pump-a', 1.6));
+await wait(800);
+await shot('8_pumps');
+await q(() => window.__qa.key('KeyE', 120));
+await wait(600);
+await page.click('[data-cause="0"]');
+await wait(300);
+await q(() => window.__qa.closeTerminal());
+await wait(300);
+await q(() => window.__qa.holdE(3400));
+await wait(3900);
+console.log('pump after repair:', JSON.stringify(await q(() => { const e = window.__qa.emergency(); return { phase: e.phase, a: e.pumpA, b: e.pumpB, t: e.tempC.toFixed(1) }; })));
+await termIs('aar', 40000);
+await wait(500);
+await shot('9_report_thermal');
+await page.click('[data-action="file"]');
+const fin = await em();
+console.log('reports:', JSON.stringify(fin.reports), 'o2 reserve', fin.o2Reserve.toFixed(1), 'done', await done());
+await page.waitForFunction(() => window.__qa.cutscene(), null, { timeout: 40000 });
+await wait(6000);
+await shot('10_ending');
+await q(() => window.__qa.skip());
+await wait(900);
+await shot('11_complete');
+console.log('final:', JSON.stringify(await q(() => ({ s: window.__qa.state().screen, reached: window.__qa.progress().reached }))));
+console.log('errors:', errors.length ? errors : 'none');
+await browser.close();

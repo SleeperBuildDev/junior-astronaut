@@ -9,6 +9,7 @@ import { MISSION_COUNT, progress } from '../game/save';
 import { blockers, build, built, FACILITIES, kits, type FacilityId } from '../game/construction';
 import { CREW, crew, sendToShelter } from '../game/crew';
 import { analyze, answer, CORRECT, science, SITE_NAMES } from '../game/science';
+import { closeReport, detector, diagnose, emergency, EMERGENCIES, respond, type EmId } from '../game/emergency';
 import { BERMS, bermsDone, rad, SHIELDED_MSV_DAY, STORM_HOURS, STORM_OUTSIDE_MSV_H, STORM_SHELTER_MSV_H, SURFACE_MSV_DAY, SURVEY, type SurveyId } from '../game/radiation';
 import { adjustPh, chooseLight, CROPS, fillTank, greenhouse, growth, microGrowth, LIGHT_CYCLES, MICRO_DAYS, PH_OK, plant, TANK_LITRES, toggleTray, TRAYS, trayProblem, type CropId } from '../game/greenhouse';
 import { choosePressure, COMFORT, connectLines, fillWaterWalls, habitat, heatersOn, installBeds, nudgeTemp, PRESSURES, WATER_WALL_LITRES } from '../game/habitat';
@@ -241,6 +242,8 @@ function Hud() {
       {warning.value ? <div class="warning">⚠ {t(warning.value)}</div> : null}
       {missionNumber.value === 6 ? <StormBanner /> : null}
       {drive.value.driving ? <RoverDash /> : null}
+      {missionNumber.value === 8 ? <EmergencyBanner /> : null}
+      {detector.value !== null ? <LeakDetector db={detector.value} /> : null}
       {fps.value ? <div class="fps">{fps.value} fps</div> : null}
     </div>
   );
@@ -274,7 +277,64 @@ function BasePanel() {
           </div>
         </>
       ) : null}
+      {missionNumber.value >= 8 ? <EmergencyRows /> : null}
       {!p.bus ? <small class="base-note">{t('hud.busOff')}</small> : p.sun < 0.05 ? <small class="base-note">{t('hud.dark')}</small> : null}
+    </div>
+  );
+}
+
+function EmergencyRows() {
+  const e = emergency.value;
+  const warn = (bad: boolean) => (bad ? 'base-row bad' : 'base-row');
+  return (
+    <>
+      <div class={warn(e.kpa < 99)}>
+        <span>💨 {t('hud.hab2kpa')}</span>
+        <b>{num(e.kpa.toFixed(1))} kPa</b>
+      </div>
+      <div class={warn(e.tempC > 26)}>
+        <span>🌡 {t('hud.hab1temp')}</span>
+        <b>{num(e.tempC.toFixed(1))} °C</b>
+      </div>
+      <div class={warn(e.o2Reserve < 90)}>
+        <span>🧪 {t('hud.o2res')}</span>
+        <b>{num(Math.round(e.o2Reserve))}%</b>
+      </div>
+    </>
+  );
+}
+
+/** The live number that matters for an emergency, as a short line. */
+function emReading(id: EmId) {
+  const e = emergency.value;
+  const p = power.value;
+  if (id === 'solar') return t('em.read.solar', { kw: num(solarKW(p).toFixed(1)), pct: num(Math.round((p.batteryKWh / BATTERY_KWH) * 100)) });
+  if (id === 'leak') return t('em.read.leak', { kpa: num(e.kpa.toFixed(1)) });
+  return t('em.read.thermal', { c: num(e.tempC.toFixed(1)) });
+}
+
+/** Red/amber alarm strip at the top while an emergency is open. */
+function EmergencyBanner() {
+  const e = emergency.value;
+  if (!e.active || e.phase === 'report' || terminal.value) return null;
+  const sev = EMERGENCIES[e.active].severity;
+  const fixing = e.phase === 'recover';
+  return (
+    <div class={`em-banner ${fixing ? 'fixing' : sev}`}>
+      <b>{fixing ? '✓ ' + t('em.recovering') : '🚨 ' + t('em.sev.' + sev)}</b> {t('em.' + e.active + '.title')} · {emReading(e.active)}
+    </div>
+  );
+}
+
+function LeakDetector({ db }: { db: number }) {
+  const k = Math.max(0, Math.min(1, (db - 20) / 76));
+  return (
+    <div class="leak-detector">
+      <span>📶 {t('em.detector')}</span>
+      <div class="bar">
+        <i style={{ width: `${Math.round(k * 100)}%`, background: k > 0.6 ? 'var(--red)' : k > 0.3 ? 'var(--amber)' : 'var(--cyan)' }} />
+      </div>
+      <b>{num(Math.round(db))} dB</b>
     </div>
   );
 }
@@ -1163,6 +1223,164 @@ function LabTerminal({ actions }: { actions: Actions }) {
   );
 }
 
+/** The alarm: what is wrong, how bad, what it affects, and the first-response choice. */
+function AlertTerminal({ actions }: { actions: Actions }) {
+  const e = emergency.value;
+  const id = e.active;
+  if (!id) return null;
+  const def = EMERGENCIES[id];
+  const chosen = e.phase !== 'alert';
+  return (
+    <div class="modal-backdrop">
+      <div class={`modal terminal em-alert ${def.severity}`}>
+        <div class="modal-head">
+          <h2>
+            🚨 {t('em.sev.' + def.severity)} · {t('em.' + id + '.title')}
+          </h2>
+          {chosen ? (
+            <button class="btn small" onClick={actions.closeTerminal}>
+              {t('term.back')}
+            </button>
+          ) : null}
+        </div>
+        <p>{t('em.' + id + '.desc')}</p>
+        <div class="em-chips">
+          <span class="em-label">{t('em.affects')}</span>
+          {def.systems.map((sy) => (
+            <span class="em-chip">{t('em.sys.' + sy)}</span>
+          ))}
+          <span class="em-read">{emReading(id)}</span>
+        </div>
+        <p>
+          <b>{t('em.q')}</b>
+        </p>
+        <div class="fn-options">
+          {def.order.map((o) => (
+            <button
+              class={`btn small fn-opt ${chosen && o === def.best ? 'right' : ''} ${e.wrong === o ? 'wrong' : ''}`}
+              data-response={o}
+              disabled={chosen}
+              onClick={() => respond(o)}
+            >
+              {t('em.' + id + '.r' + o)}
+            </button>
+          ))}
+        </div>
+        {e.wrong !== null && !chosen ? <p class="fault">⚠ {t('em.' + id + '.r' + e.wrong + '.why')}</p> : null}
+        {chosen ? (
+          <>
+            <p class="bt-done">✓ {t('em.' + id + '.ok')}</p>
+            <button class="btn primary small confirm" data-action="go" onClick={actions.closeTerminal}>
+              {t('em.go')}
+            </button>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** At the broken equipment: read the evidence, pick the cause. */
+function DiagTerminal({ actions }: { actions: Actions }) {
+  const e = emergency.value;
+  const id = e.active;
+  if (!id || id === 'leak') return null;
+  const def = EMERGENCIES[id];
+  const solved = e.phase !== 'diagnose';
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal notes">
+        <div class="modal-head">
+          <h2>🔍 {t('em.' + id + '.diagTitle')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <ul class="em-evidence">
+          {[0, 1, 2, 3].map((k) => (
+            <li>{t('em.' + id + '.ev' + k)}</li>
+          ))}
+        </ul>
+        <p>
+          <b>{t('em.' + id + '.cq')}</b>
+        </p>
+        <div class="fn-options">
+          {def.order.map((o) => (
+            <button
+              class={`btn small fn-opt ${solved && o === def.cause ? 'right' : ''} ${e.wrong === o ? 'wrong' : ''}`}
+              data-cause={o}
+              disabled={solved}
+              onClick={() => diagnose(o)}
+            >
+              {t('em.' + id + '.c' + o)}
+            </button>
+          ))}
+        </div>
+        {e.wrong !== null && !solved ? <p class="fault">💭 {t('em.' + id + '.c' + e.wrong + '.hint')}</p> : null}
+        {solved ? (
+          <>
+            <p class="bt-done">✓ {t('em.' + id + '.cok')}</p>
+            <p class="fn-next">{t('em.holdNext')}</p>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** After-action report: what happened, why, how to prevent it, and how the response went. */
+function ReportTerminal({ actions }: { actions: Actions }) {
+  const e = emergency.value;
+  const id = e.active;
+  if (!id) return null;
+  const r = e.reports[id];
+  if (!r) return null;
+  const total = Math.round(r.minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  const worst = id === 'solar' ? num(Math.round(r.worst)) : num(r.worst.toFixed(1));
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal aar">
+        <div class="modal-head">
+          <h2>
+            📋 {t('aar.title')} · {t('em.' + id + '.title')}
+          </h2>
+        </div>
+        <div class="aar-grid">
+          <div>
+            <h3>{t('aar.what')}</h3>
+            <p>{t('aar.' + id + '.what')}</p>
+          </div>
+          <div>
+            <h3>{t('aar.why')}</h3>
+            <p>{t('aar.' + id + '.why')}</p>
+          </div>
+          <div>
+            <h3>{t('aar.prevent')}</h3>
+            <p>{t('aar.' + id + '.prevent')}</p>
+          </div>
+        </div>
+        <div class="aar-stats">
+          <span>{r.tries <= 1 ? '✓ ' + t('aar.first') : t('aar.tries', { n: num(r.tries) })}</span>
+          <span>⏱ {t('aar.time', { h: num(h), m: num(m) })}</span>
+          <span>📉 {t('aar.worst.' + id, { v: worst })}</span>
+        </div>
+        <button
+          class="btn primary small confirm"
+          data-action="file"
+          onClick={() => {
+            closeReport();
+            actions.closeTerminal();
+          }}
+        >
+          {t('aar.file')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CrewPanel() {
   const c = crew.value;
   const h = habitat.value;
@@ -1621,6 +1839,9 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'playing' && terminal.value === 'shelter' && <ShelterScreen actions={actions} />}
       {sc === 'playing' && terminal.value === 'notes' && <NotesTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'lab' && <LabTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'alert' && <AlertTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'diag' && <DiagTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'aar' && <ReportTerminal actions={actions} />}
       {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>

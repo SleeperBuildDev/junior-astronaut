@@ -21,6 +21,8 @@ import { Mission4 } from './game/mission4';
 import { Mission5 } from './game/mission5';
 import { Mission6 } from './game/mission6';
 import { Mission7 } from './game/mission7';
+import { Mission8 } from './game/mission8';
+import { emergency, resetEmergency } from './game/emergency';
 import { resetScience, science } from './game/science';
 import { Rover } from './player/rover';
 import { crew } from './game/crew';
@@ -165,7 +167,9 @@ async function boot() {
     if (cardPopup.value) sfx('unlock');
   });
   effect(() => {
-    if (terminal.value) sfx('terminal');
+    if (!terminal.value) return;
+    sfx('terminal');
+    input.unlock();
   });
   effect(() => {
     if (panel.value) sfx('panel');
@@ -262,6 +266,7 @@ async function boot() {
   registry.set(1, { m: new Mission1(outpost), spawn: { pos: startPos, yaw: startYaw }, intro: scenes.intro, ending: scenes.m1End });
   registry.set(2, { m: new Mission2(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.lifeSupport.pos), intro: scenes.m2Intro, ending: scenes.m2End });
   registry.set(3, { m: new Mission3(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m3Intro, ending: scenes.m3End });
+  registry.set(8, { m: new Mission8(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m8Intro, ending: scenes.m8End, day: 19 });
   registry.set(7, { m: new Mission7(outpost), spawn: spawnAt(LAYOUT.base.x - 5, LAYOUT.base.z + 9, outpost.rover.position), intro: scenes.m7Intro, ending: scenes.m7End, day: 16 });
   registry.set(6, { m: new Mission6(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.radiation.monitorPos), intro: scenes.m6Intro, ending: scenes.m6End, day: 14 });
   registry.set(5, { m: new Mission5(outpost), spawn: spawnAt(LAYOUT.base.x - 7, LAYOUT.base.z + 5.5, outpost.hab2.buildTerminalPos), intro: scenes.m5Intro, ending: scenes.m5End });
@@ -308,6 +313,7 @@ async function boot() {
     if (n >= 7) radiationDone();
     else resetRadiation();
     resetScience();
+    resetEmergency();
     leaveRover(false);
     rover.place(roverPark.pos, roverPark.yaw);
     rover.battery = 100;
@@ -604,6 +610,7 @@ async function boot() {
     syncHab2();
     syncGreenhouse();
     syncRadiation();
+    syncEmergency(dt);
     updateGuide(t / 1000);
     // Sunlight, ground bounce and reflections all fade when the Sun goes below the horizon.
     const day = sunlight();
@@ -719,6 +726,24 @@ async function boot() {
     }
   }
 
+  // ---------- Mission 8 visuals: tower damage, leak patch, cooling pumps ----------
+  function syncEmergency(dt: number) {
+    const e = emergency.value;
+    const rig = outpost.emergency;
+    const m8 = missionNumber.value === 8;
+    rig.fittings.visible = missionNumber.value >= 8;
+    const hit = m8 && (e.active === 'solar' || e.done.includes('solar'));
+    for (const d of rig.towerDamage) d.visible = hit;
+    // Tower 2's status light shows red until its shorted string is cut out.
+    if (e.active === 'solar' && (e.phase === 'alert' || e.phase === 'diagnose' || e.phase === 'repair')) outpost.arrays[1].light.material = statusMaterials.red;
+    const patched = e.done.includes('leak') || (e.active === 'leak' && (e.phase === 'recover' || e.phase === 'report'));
+    rig.patches.forEach((p, i) => (p.visible = m8 && patched && i === e.leak));
+    rig.pumpLights.a.material = e.pumpA ? statusMaterials.green : statusMaterials.red;
+    rig.pumpLights.b.material = e.pumpB ? statusMaterials.green : statusMaterials.amber;
+    if (e.pumpA) rig.rotors.a.rotation.x += dt * 14;
+    if (e.pumpB) rig.rotors.b.rotation.x += dt * 14;
+  }
+
   // ---------- greenhouse visuals: assembly and grow lights ----------
   function syncGreenhouse() {
     const g = greenhouse.value;
@@ -795,6 +820,7 @@ async function boot() {
         greenhouse: () => greenhouse.value,
         rad: () => rad.value,
         science: () => science.value,
+        emergency: () => emergency.value,
         /** Put the rover somewhere (and keep driving if in it). */
         roverTo: (x: number, z: number, yaw = 0) => rover.place(new THREE.Vector3(x, 0, z), yaw),
         drive: (ms: number) => {

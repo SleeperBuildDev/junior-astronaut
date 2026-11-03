@@ -19,6 +19,6 @@ export function t(key: string, vars?: Record<string, string | number>) {
 
 const MY_DIGITS = '၀၁၂၃၄၅၆၇၈၉';
 /** Mission numbers etc. in Myanmar digits when the UI is Burmese. */
-export function num(n: number) {
+export function num(n: number | string) {
   return settings.value.lang === 'my' ? String(n).replace(/\d/g, (d) => MY_DIGITS[+d]) : String(n);
 }

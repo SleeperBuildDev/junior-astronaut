@@ -409,6 +409,39 @@ export const CARDS: Record<string, Card> = {
     inGame: 'The outpost does not mine yet. Turning ISRU experiments into real factories is one of the big goals of Moon exploration.',
     source: 'NASA: In-Situ Resource Utilization; NASA MOXIE and lunar ISRU studies',
   },
+  plume: {
+    id: 'plume',
+    title: 'Rocket blast and flying dust',
+    icon: '🚀',
+    body: [
+      'In 1969, Apollo 12 landed less than 200 metres from Surveyor 3, a robot lander that had arrived two and a half years earlier. Parts the astronauts brought home were pitted and sandblasted by dust from their own lander’s engine.',
+      'With no air to slow it down, dust kicked up by a rocket on the Moon can fly very fast and very far. NASA studies landing pads and safe distances so future landers do not damage bases nearby.',
+    ],
+    inGame: 'The damage here is a simple fixed amount. Real plume effects depend on the lander’s size, how far away it lands and the ground under it.',
+    source: 'NASA Apollo 12 mission and Surveyor 3 analysis; NASA plume-surface interaction research',
+  },
+  leaks: {
+    id: 'leaks',
+    title: 'Hunting for leaks',
+    icon: '🔊',
+    body: [
+      'In August 2018, the crew of the International Space Station found a hole about 2 millimetres across in a Soyuz spacecraft docked to the station. They sealed it with an epoxy patch.',
+      'In 2020, cosmonauts tracked down a slow leak in the Zvezda module by letting tea leaves float in the air and watching where they drifted. Crews also use ultrasonic detectors that “hear” the very high hiss of escaping air.',
+    ],
+    inGame: 'Your detector works from outside and from a distance. Sound cannot travel through vacuum, so real detectors listen inside, where there is air, or are pressed against the wall.',
+    source: 'NASA ISS status reports (2018, 2020)',
+  },
+  cooling: {
+    id: 'cooling',
+    title: 'Keeping cool in space',
+    icon: '🌡️',
+    body: [
+      'A habitat full of people and electronics makes a lot of heat. On the ISS, pumps push coolant around loops that carry the heat to big radiators, which give it off into space as invisible infrared light.',
+      'In 2010, a pump on one of the station’s two ammonia cooling loops failed. Astronauts made three spacewalks to replace it. The station stayed safe because the other loop kept working: engineers call this redundancy.',
+    ],
+    inGame: 'You change the motor in seconds. The real ISS pump module weighs about 350 kg and took three spacewalks to replace.',
+    source: 'NASA ISS Active Thermal Control System; ISS pump module replacement (2010)',
+  },
 };
 
 /** The card in the current UI language (Burmese falls back to English per field). */
