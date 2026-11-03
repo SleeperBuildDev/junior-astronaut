@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { playVoice, sfx } from '../audio/audio';
 import type { Outpost } from '../world/base';
-import { checkFitting, detector, emergency, EM_ORDER, onEmEvent, openReport, recovered, repair, resetEmergency, simulateEmergency, trigger, type EmId } from './emergency';
+import { checkFitting, detector, emergency, updateDetector, EM_ORDER, onEmEvent, openReport, recovered, repair, resetEmergency, simulateEmergency, trigger, type EmId } from './emergency';
 import type { GameMission, GuideTarget, MissionCtx } from './mission';
 import { power, simulatePower } from './power';
-import { gameSpeed, mission, NORMAL_SPEED, pushComm, screen, terminal, unlock, type Step } from './state';
+import { gameSpeed, mission, missionNumber, NORMAL_SPEED, pushComm, screen, terminal, unlock, type Step } from './state';
 
 // Mission 8: Emergency Response. Three emergencies arrive one after another: plume grit
 // knocks out a solar tower, HAB-2 springs a leak, and HAB-1's cooling pump fails. For each,
@@ -44,8 +44,8 @@ const LINES: Record<string, { vo: string; text: string; from?: string }> = {
   allClear: { vo: 'm8_15', text: 'c.m8.allClear' },
 };
 
-const CARDS: Record<EmId, string> = { solar: 'plume', leak: 'leaks', thermal: 'cooling' };
-const STEP_NO: Record<EmId, number> = { solar: 1, leak: 2, thermal: 3 };
+const CARDS: Partial<Record<EmId, string>> = { solar: 'plume', leak: 'leaks', thermal: 'cooling' };
+const STEP_NO: Partial<Record<EmId, number>> = { solar: 1, leak: 2, thermal: 3 };
 
 export class Mission8 implements GameMission {
   readonly number = 8;
@@ -55,7 +55,6 @@ export class Mission8 implements GameMission {
   /** Timers that run on mission time, so pausing the game pauses them too. */
   private timers: { at: number; fn: () => void }[] = [];
   private time = 0;
-  private tick = 0;
   /** The report waits a few seconds after a repair, so Mission Control can finish talking. */
   private reportAt = 0;
   private marks: { tower: THREE.Object3D; leaks: THREE.Vector3[]; hab2: THREE.Vector3; pump: THREE.Vector3 };
@@ -63,7 +62,8 @@ export class Mission8 implements GameMission {
   constructor(outpost: Outpost) {
     this.marks = { tower: outpost.arrays[1].box, leaks: outpost.emergency.leaks, hab2: outpost.hab2.center, pump: outpost.emergency.pumpPos };
     onEmEvent((e, id) => {
-      const n = STEP_NO[id];
+      if (missionNumber.value !== 8) return;
+      const n = STEP_NO[id]!;
       if (e === 'alarm') {
         this.say((id + 'Alarm') as keyof typeof LINES);
         this.after(1.5, () => (terminal.value = 'alert'));
@@ -85,7 +85,7 @@ export class Mission8 implements GameMission {
         this.say((id + 'Fix') as keyof typeof LINES);
       }
       if (e === 'closed') {
-        unlock(CARDS[id]);
+        unlock(CARDS[id]!);
         const next = EM_ORDER[EM_ORDER.indexOf(id) + 1];
         if (next) {
           if (id === 'solar') this.say('report');
@@ -164,17 +164,7 @@ export class Mission8 implements GameMission {
       openReport();
       terminal.value = 'aar';
     }
-    // Leak hunt: the detector's tone rises as you get closer to the hole.
-    if (s.active === 'leak' && s.phase === 'diagnose' && p.playing) {
-      const d = p.eye.distanceTo(this.marks.leaks[s.leak]);
-      const db = Math.min(96, 20 + 75 * Math.exp(-(d - 1.2) / 1.6));
-      detector.value = db;
-      this.tick -= dt;
-      if (this.tick <= 0 && d < 14) {
-        sfx('tick', db / 92);
-        this.tick = THREE.MathUtils.lerp(1.1, 0.07, (db - 20) / 76);
-      }
-    } else if (detector.value !== null && !(s.active === 'leak' && s.phase === 'diagnose')) detector.value = null;
+    updateDetector(dt, p.playing ? p.eye.distanceTo(this.marks.leaks[s.leak]) : null);
   }
 
   interact(id: string): string | null {

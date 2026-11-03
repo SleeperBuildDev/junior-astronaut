@@ -22,6 +22,8 @@ import { Mission5 } from './game/mission5';
 import { Mission6 } from './game/mission6';
 import { Mission7 } from './game/mission7';
 import { Mission8 } from './game/mission8';
+import { Mission9 } from './game/mission9';
+import { resetSettlement, settlement } from './game/settlement';
 import { emergency, resetEmergency } from './game/emergency';
 import { resetScience, science } from './game/science';
 import { Rover } from './player/rover';
@@ -31,7 +33,7 @@ import { greenhouse, greenhouseDone, resetGreenhouse } from './game/greenhouse';
 import { resetConstruction } from './game/construction';
 import { resetCrew } from './game/crew';
 import { habitat, habitatDone, resetHabitat } from './game/habitat';
-import { BATTERY_KWH, power, powerOnline, resetPower, sunYaw } from './game/power';
+import { capacityKWh, power, powerOnline, resetPower, setArrayHealth, sunYaw } from './game/power';
 import { missionDone, progress } from './game/save';
 import { cardPopup, clock, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
 import { Input } from './player/input';
@@ -266,6 +268,9 @@ async function boot() {
   registry.set(1, { m: new Mission1(outpost), spawn: { pos: startPos, yaw: startYaw }, intro: scenes.intro, ending: scenes.m1End });
   registry.set(2, { m: new Mission2(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.lifeSupport.pos), intro: scenes.m2Intro, ending: scenes.m2End });
   registry.set(3, { m: new Mission3(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m3Intro, ending: scenes.m3End });
+  const mission9 = new Mission9(outpost);
+  registry.set(9, { m: mission9, spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.habitatPos), intro: scenes.m9Intro, ending: scenes.m9End, day: 20 });
+  actions.finishSettlement = () => mission9.finish();
   registry.set(8, { m: new Mission8(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.power.pos), intro: scenes.m8Intro, ending: scenes.m8End, day: 19 });
   registry.set(7, { m: new Mission7(outpost), spawn: spawnAt(LAYOUT.base.x - 5, LAYOUT.base.z + 9, outpost.rover.position), intro: scenes.m7Intro, ending: scenes.m7End, day: 16 });
   registry.set(6, { m: new Mission6(outpost), spawn: spawnAt(LAYOUT.base.x - 9, LAYOUT.base.z + 4, outpost.radiation.monitorPos), intro: scenes.m6Intro, ending: scenes.m6End, day: 14 });
@@ -314,6 +319,12 @@ async function boot() {
     else resetRadiation();
     resetScience();
     resetEmergency();
+    resetSettlement();
+    // After Mission 8: tower 2 lost one panel string; tower 3 waits for its spare blanket.
+    if (n >= 9) {
+      setArrayHealth(1, 0.75);
+      setArrayHealth(2, 0.4);
+    }
     leaveRover(false);
     rover.place(roverPark.pos, roverPark.yaw);
     rover.battery = 100;
@@ -526,6 +537,10 @@ async function boot() {
           panel.value = 'crew';
           input.unlock();
         }
+        if (input.pressed('KeyT') && missionNumber.value === 9) {
+          panel.value = 'colony';
+          input.unlock();
+        }
         if (input.pressed('KeyK')) {
           panel.value = 'knowledge';
           input.unlock();
@@ -575,6 +590,10 @@ async function boot() {
         }
         if (input.pressed('KeyC') && missionNumber.value >= 4) {
           panel.value = 'crew';
+          input.unlock();
+        }
+        if (input.pressed('KeyT') && missionNumber.value === 9) {
+          panel.value = 'colony';
           input.unlock();
         }
         // Focus the interactable under the crosshair.
@@ -726,6 +745,9 @@ async function boot() {
     }
   }
 
+  const facilityColliders: Record<string, (spec: ColliderSpec | null) => void> = {};
+  for (const id of Object.keys(outpost.settlement.facilities)) facilityColliders[id] = dynamicCollider();
+
   // ---------- Mission 8 visuals: tower damage, leak patch, cooling pumps ----------
   function syncEmergency(dt: number) {
     const e = emergency.value;
@@ -733,11 +755,22 @@ async function boot() {
     const m8 = missionNumber.value === 8;
     rig.fittings.visible = missionNumber.value >= 8;
     const hit = m8 && (e.active === 'solar' || e.done.includes('solar'));
-    for (const d of rig.towerDamage) d.visible = hit;
+    // Mission 9 starts with the damage Mission 8 left; tower 3 is clean once its new blanket is on.
+    rig.towerDamage[0].visible = hit || missionNumber.value >= 9;
+    rig.towerDamage[1].visible = hit || (missionNumber.value >= 9 && (power.value.arrays[2].health ?? 1) < 1);
     // Tower 2's status light shows red until its shorted string is cut out.
     if (e.active === 'solar' && (e.phase === 'alert' || e.phase === 'diagnose' || e.phase === 'repair')) outpost.arrays[1].light.material = statusMaterials.red;
     const patched = e.done.includes('leak') || (e.active === 'leak' && (e.phase === 'recover' || e.phase === 'report'));
-    rig.patches.forEach((p, i) => (p.visible = m8 && patched && i === e.leak));
+    rig.patches.forEach((p, i) => (p.visible = missionNumber.value >= 8 && patched && i === e.leak));
+    // Mission 9 facilities rise while they are built, and become solid once finished.
+    const st = settlement.value;
+    for (const [id, f] of Object.entries(outpost.settlement.facilities)) {
+      const b = st.building.find((x) => x.id === id);
+      const done = st.running.includes(id as never);
+      f!.group.visible = missionNumber.value === 9 && (done || !!b);
+      f!.group.scale.y = done ? 1 : b ? Math.max(0.05, 1 - b.hours / b.total) : 1;
+      facilityColliders[id](done && missionNumber.value === 9 ? f!.collider : null);
+    }
     rig.pumpLights.a.material = e.pumpA ? statusMaterials.green : statusMaterials.red;
     rig.pumpLights.b.material = e.pumpB ? statusMaterials.green : statusMaterials.amber;
     if (e.pumpA) rig.rotors.a.rotation.x += dt * 14;
@@ -770,7 +803,7 @@ async function boot() {
       rig.head.rotation.y = THREE.MathUtils.degToRad(a.yaw) - rig.group.rotation.y;
       rig.light.material = a.tracking ? statusMaterials.green : a.deploy >= 1 ? statusMaterials.cyan : statusMaterials.amber;
     });
-    const charge = p.batteryKWh / BATTERY_KWH;
+    const charge = p.batteryKWh / capacityKWh(p);
     const gaugeMat = charge > 0.5 ? statusMaterials.green : charge > 0.2 ? statusMaterials.amber : statusMaterials.red;
     for (const g of outpost.power.gauges) {
       g.scale.y = Math.max(0.03, charge);
@@ -821,6 +854,12 @@ async function boot() {
         rad: () => rad.value,
         science: () => science.value,
         emergency: () => emergency.value,
+        settlement: () => settlement.value,
+        /** Mission 9: jump the settlement clock to a day (fires that day's events). */
+        settleDay: (d: number) => {
+          clock.value = { ...clock.value, minutes: clock.value.minutes + (d - settlement.value.day) * 1440 };
+          settlement.value = { ...settlement.value, day: d };
+        },
         /** Put the rover somewhere (and keep driving if in it). */
         roverTo: (x: number, z: number, yaw = 0) => rover.place(new THREE.Vector3(x, 0, z), yaw),
         drive: (ms: number) => {

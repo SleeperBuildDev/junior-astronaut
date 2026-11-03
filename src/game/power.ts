@@ -58,6 +58,10 @@ function initial() {
     /** Fraction of full sunlight reaching the towers (0 while the Sun is below the horizon). */
     sun: 1,
     planLocked: false,
+    /** Extra battery capacity from built storage, kWh. */
+    extraKWh: 0,
+    /** Power used by facilities built in Mission 9, kW. */
+    facilityKW: 0,
   };
 }
 
@@ -105,7 +109,12 @@ export function solarKW(p = power.value) {
 }
 
 export function loadKW(p = power.value) {
-  return LOADS.reduce((s, l) => s + (p.loads[l.id] ? kwOf(l.id, p) : 0), 0);
+  return LOADS.reduce((s, l) => s + (p.loads[l.id] ? kwOf(l.id, p) : 0), 0) + (p.facilityKW ?? 0);
+}
+
+/** How much energy the battery bank can hold, kWh. */
+export function capacityKWh(p = power.value) {
+  return Math.max(20, BATTERY_KWH + (p.extraKWh ?? 0));
 }
 
 /** How long the battery would last with no sunlight at the current load. */
@@ -216,7 +225,7 @@ export function simulatePower(realDt: number, gameSeconds: number) {
   let battery = p.batteryKWh;
   if (p.bus) {
     const net = solarKW({ ...p, arrays }) - loadKW(p);
-    battery = Math.max(0, Math.min(BATTERY_KWH, battery + (net * gameSeconds) / 3600));
+    battery = Math.max(0, Math.min(capacityKWh(p), battery + (net * gameSeconds) / 3600));
     changed ||= battery !== p.batteryKWh;
   }
   if (changed) power.value = { ...p, arrays, batteryKWh: battery };

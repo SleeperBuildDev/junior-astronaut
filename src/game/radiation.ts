@@ -45,9 +45,10 @@ function initial() {
 export const rad = signal(initial());
 
 export type RadEvent = 'scanned' | 'berm' | 'bermsDone' | 'arrived' | 'stormOver';
-let listener: (e: RadEvent) => void = () => {};
+// Missions 6 and 9 both listen (each checks it is the one being played).
+const listeners: ((e: RadEvent) => void)[] = [];
 export function onRadEvent(l: (e: RadEvent) => void) {
-  listener = l;
+  listeners.push(l);
 }
 
 type State = ReturnType<typeof initial>;
@@ -69,7 +70,7 @@ export function scan(id: SurveyId) {
   if (r.scans.includes(id)) return false;
   sfx('scan');
   patch({ scans: [...r.scans, id] });
-  listener('scanned');
+  for (const l of listeners) l('scanned');
   return true;
 }
 
@@ -124,5 +125,5 @@ export function simulateRadiation(realDt: number, gameSeconds: number) {
     }
   }
   if (Object.keys(p).length) rad.value = { ...r, ...p };
-  for (const e of events) listener(e);
+  for (const e of events) for (const l of listeners) l(e);
 }

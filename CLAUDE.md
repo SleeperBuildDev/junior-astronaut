@@ -49,6 +49,17 @@ Done and tested (git history has one commit per milestone):
   tower damage overlays, 3 leak fittings on HAB-2, cooling radiator + pump skid east of the
   life-support unit. BASE STATUS shows HAB-2 air, HAB-1 temp and O₂ reserve from Mission 8.
   Mission 8 uses mission-time timers (`after()` in update) so pausing pauses them.
+- **Mission 9 — Sustainable Lunar Settlement** (day 20, 30 settlement days): `src/game/settlement.ts`
+  links power → life support/heating, O₂ (generator 4 kg/day vs 0.84 kg/person), water (10 L/person,
+  93% recovery, 98% with a 2nd recycler), food (greenhouse +0.3 day/day), temperature, equipment
+  condition and crew health (fail below 20 → crew called home). T opens the settlement panel
+  (`panel` 'colony', pauses): rates, crew, load switches, speed ×1 / 1 day per 30 s / per 15 s.
+  Beats: day 4 cargo (+9 kits, water, food, spare blanket → hold E on tower 3), long shadow days 8–10
+  (towers at 30% light), storm ~day 20.5 (reuses radiation.ts + the M6 shelter screen), 3 random
+  emergencies from leak/thermal/recycler/comms/battery (emergency.ts). Building in the BLD-1 planner
+  takes game hours; finished facilities change the numbers and appear in the world. Final report
+  terminal ('final') with score and 1–3 stars; `actions.finishSettlement` ends the mission.
+  Comms outage silences Mission Control (text-only on the backup antenna).
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
@@ -63,7 +74,7 @@ Done and tested (git history has one commit per milestone):
 - Cutscenes: Mission 1 landing intro (descent + ballistic dust), Mission 1 ending, Mission 2 intro + ending.
 - Procedural sound effects (Web Audio), machinery hum, ambient music.
 
-**Remaining (the main job): Mission 9** plus the systems they need — see "Roadmap" below.
+**All nine missions are built.** Possible next steps: polish from playtesting, hosting (GitHub Pages).
 
 ## Run, test, build
 
@@ -79,7 +90,7 @@ npm run build        # production build to dist/ (base './', works on any static
 - **The Browser pane throttles rendering when hidden**, so its FPS is meaningless. Measure with
   the Playwright scripts, which drive the installed Chrome on the real GPU (no browser download):
   - `node qa/perf.mjs` — FPS / triangles / draw calls per quality preset (+ console errors).
-  - `node qa/mission1.mjs`, `node qa/mission2.mjs`, `node qa/mission3.mjs [en|my]`, `node qa/mission4.mjs [en|my]`, `node qa/mission5.mjs [en|my]`, `node qa/mission6.mjs [en|my]`, `node qa/mission7.mjs [en|my]`, `node qa/mission8.mjs [en|my]` — automated playthroughs with screenshots.
+  - `node qa/mission1.mjs`, `node qa/mission2.mjs`, `node qa/mission3.mjs [en|my]`, `node qa/mission4.mjs [en|my]`, `node qa/mission5.mjs [en|my]`, `node qa/mission6.mjs [en|my]`, `node qa/mission7.mjs [en|my]`, `node qa/mission8.mjs [en|my]`, `node qa/mission9.mjs [en|my]` — automated playthroughs with screenshots.
   - `node qa/cutscenes.mjs [en|my]` — screenshots of every cutscene.
   - `node qa/shots.mjs <prefix>` — eye-level beauty shots of the outpost.
   - `node qa/guide.mjs [en|my]` — guidance marker + language screenshots.
@@ -88,7 +99,7 @@ npm run build        # production build to dist/ (base './', works on any static
   cut(name), teleport(x,z,yaw,pitch), look(yaw,pitch), key(code,ms), holdE(ms), closeTerminal,
   state, info, gpu, show(name,on), shadows(on), quality(q), sfx(name), audio, cutscene,
   mission(n)` (jump to mission n), `goTo(id, dist, angle?)` (stand in front of an interactable),
-  `power, habitat, greenhouse, rad, crew, science, emergency, rover, roverTo(x,z,yaw), drive(ms), speed, progress`. Add `?unlock=N` to any URL to open missions up to N.
+  `power, habitat, greenhouse, rad, crew, science, emergency, settlement, settleDay(d), rover, roverTo(x,z,yaw), drive(ms), speed, progress`. Add `?unlock=N` to any URL to open missions up to N.
   In QA mode movement works without pointer lock. Extend these hooks for new missions.
 - Show the owner previews along the way: screenshot with the QA scripts, then send the PNGs
   (SendUserFile). He asked for previews during development.
@@ -128,6 +139,7 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/game/greenhouse.ts` | Greenhouse + food: crops, light cycles, pH alarm, growth, harvest, `foodDays`; `greenhouseDone()` |
 | `src/game/radiation.ts` | Radiation: survey readings, berms, space weather (warning → storm → clear), shelter doses |
 | `src/game/science.ts` | Mission 7 sites (new/noted/sampled), field-notes answers, delivery, analysis |
+| `src/game/settlement.ts` | Mission 9: 30-day resource model (rates per game day), construction timing, crew health, score |
 | `src/game/emergency.ts` | Mission 8 emergencies: `EMERGENCIES` data, phases alert→diagnose→repair→recover→report, cabin kPa/temp/O₂ reserve, `detector` signal |
 | `src/player/rover.ts` | Drivable rover (see Mission 7) |
 | `src/game/power.ts` | Power simulation: towers (deploy/aim/track), bus, battery (100 kWh), loads, `confirmPlan`, `arrayPanel` |
@@ -185,8 +197,9 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
   High ≈ 70+, Low ≈ 200+ at 1600×900 (after Mission 3: Medium ≈ 100 fps, 386 draw calls). Keep draw calls/lights modest; floodlight SpotLights are skipped on Low.
 - The other chat's Vite dev server sometimes serves a stale module after many quick edits (a
   ReferenceError for a removed name): `touch` the changed files to force a fresh transform.
-- Event hooks: `onBuild` (construction) supports several listeners; the other `on*Event` hooks in
-  power/habitat/greenhouse keep ONE listener (one mission each) — use a list if two missions need one.
+- Event hooks: `onBuild`, `onRadEvent`, `onEmEvent` and `onSettleEvent` take several listeners (each
+  mission checks `missionNumber` first); the other `on*Event` hooks in power/habitat/greenhouse/crew
+  keep ONE listener (one mission each) — use a list if two missions need one.
 - Registry entries are added in main.ts; each mission's `end()` clears its timers on restart/leave.
 - Terminals opened by a timer (alarms, reports) free the mouse through the `terminal` effect in main.ts.
 - Kokoro voices: Mission Control `am_michael`, narrator `af_heart`, crew `cr_cmdr_*` bf_emma,

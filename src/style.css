@@ -431,3 +431,31 @@ body.lang-my .objective li { padding: 4px 0; }
 .aar-grid p { margin: 0; font-size: 0.92em; line-height: 1.5; }
 .aar-stats { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0 6px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); }
 .base-row.bad b { color: var(--red); }
+
+/* ---------- Mission 9: settlement panel and final report ---------- */
+.modal.colony { width: min(1080px, 96vw); }
+.settle h3 { margin: 10px 0 6px; font-size: 0.95em; color: var(--cyan); }
+.st-top { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.st-day { flex: 1; min-width: 220px; }
+.st-day b { font-family: var(--mono); font-size: 1.6em; display: block; }
+.st-speed div { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.st-cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 22px; }
+.st-row { display: grid; grid-template-columns: 140px 130px 120px 1fr; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 14px; }
+.st-row b { font-family: var(--mono); }
+.st-row em { font-style: normal; font-family: var(--mono); opacity: 0.8; white-space: nowrap; }
+.st-row small { opacity: 0.7; }
+.st-row.bad b, .st-row.bad small { color: var(--red); opacity: 1; }
+.st-explain { font-size: 13px; opacity: 0.8; line-height: 1.5; }
+.st-crew { display: grid; grid-template-columns: 170px 1fr 48px; gap: 8px; align-items: center; margin: 4px 0; font-size: 14px; }
+.st-switches { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-switches .btn.on { border-color: var(--green); color: var(--green); }
+.st-note { display: block; opacity: 0.65; margin-top: 4px; font-size: 12px; }
+.st-fac { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
+.st-fac li.todo { opacity: 0.75; }
+.fin-stars { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; }
+.fin-stars span { font-size: 40px; color: rgba(255,255,255,0.18); }
+.fin-stars span.on { color: #ffcf4a; text-shadow: 0 0 14px rgba(255, 200, 70, 0.6); }
+.fin-stars b { font-family: var(--mono); font-size: 1.3em; margin-left: 8px; }
+.fin-stars em { font-style: normal; color: var(--cyan); }
+.fin-rows > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.fin-rows b { font-family: var(--mono); white-space: nowrap; }

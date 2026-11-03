@@ -512,5 +512,42 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
     },
   ];
 
-  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End, m6Intro, m6End, m7Intro, m7End, m8Intro, m8End };
+  const m9Intro: Shot[] = [
+    {
+      dur: 8.5,
+      sub: 'cs.m9_intro_1',
+      vo: 'cs_m9_intro_1',
+      // A wide, high circle over the whole finished outpost.
+      cam: orbit(hab, 46, 20, 0.8, 2.0, 1),
+    },
+    {
+      dur: 8.5,
+      sub: 'cs.m9_intro_2',
+      vo: 'cs_m9_intro_2',
+      // From behind the habitat, tilt up from the modules to Earth low on the horizon.
+      cam: (k, cam) => {
+        const e = ease(k);
+        cam.position.set(hab.x + 9 - EARTH_DIR.x * 14, hab.y + 3 + e * 2, hab.z + 4 - EARTH_DIR.z * 14);
+        const toEarth = cam.position.clone().addScaledVector(EARTH_DIR, 200);
+        cam.lookAt(new THREE.Vector3(hab.x, hab.y + 2, hab.z).lerp(toEarth, e));
+      },
+    },
+  ];
+
+  const m9End: Shot[] = [
+    {
+      dur: 13,
+      sub: 'cs.m9_end',
+      vo: 'cs_m9_end',
+      // A slow rise over the living outpost, ending on Earth above the horizon.
+      cam: (k, cam) => {
+        const e = ease(k);
+        cam.position.set(hab.x - 20 + e * 6, hab.y + 4 + e * 26, hab.z + 26 + e * 10);
+        const toEarth = cam.position.clone().addScaledVector(EARTH_DIR, 300);
+        cam.lookAt(new THREE.Vector3(hab.x, hab.y + 1, hab.z).lerp(toEarth, Math.max(0, e - 0.35) / 0.65));
+      },
+    },
+  ];
+
+  return { intro, m1End, m2Intro, m2End, m3Intro, m3End, m4Intro, m4End, m5Intro, m5End, m6Intro, m6End, m7Intro, m7End, m8Intro, m8End, m9Intro, m9End };
 }

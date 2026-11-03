@@ -5,7 +5,7 @@ export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 
 export const screen = signal<Screen>('loading');
 export const loadProgress = signal(0);
 /** Which overlay panel is open on top of the game (pauses input). */
-export const panel = signal<null | 'settings' | 'controls' | 'knowledge' | 'credits' | 'missions' | 'crew'>(null);
+export const panel = signal<null | 'settings' | 'controls' | 'knowledge' | 'credits' | 'missions' | 'crew' | 'colony'>(null);
 
 export const suit = signal({ o2: 100, power: 100, health: 100, tempIn: 21, tempOut: -48, dose: 0, light: false });
 
@@ -44,7 +44,7 @@ export function unlock(id: string) {
 }
 
 /** The machine screen open on top of the game, if any (the game keeps running behind it). */
-export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab' | 'gh' | 'rad' | 'shelter' | 'notes' | 'lab' | 'alert' | 'diag' | 'aar'>(null);
+export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab' | 'gh' | 'rad' | 'shelter' | 'notes' | 'lab' | 'alert' | 'diag' | 'aar' | 'final'>(null);
 /** Rover dashboard (shown while driving). */
 export const drive = signal({ driving: false, speed: 0, battery: 100 });
 

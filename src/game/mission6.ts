@@ -5,7 +5,7 @@ import { allSent, crew, engineerInside, onAllSent, simulateCrew } from './crew';
 import type { GameMission, GuideTarget, MissionCtx } from './mission';
 import { simulatePower } from './power';
 import { BERMS, enterShelter, markMonitorRead, onRadEvent, rad, scan, simulateRadiation, startPiling, startWarning, STORM_OUTSIDE_MSV_H, type BermId, type SurveyId } from './radiation';
-import { gameSpeed, mission, NORMAL_SPEED, pushComm, screen, suit, terminal, unlock, type Step } from './state';
+import { gameSpeed, mission, missionNumber, NORMAL_SPEED, pushComm, screen, suit, terminal, unlock, type Step } from './state';
 
 // Mission 6: Radiation Protection. Read the radiation monitor, survey the module walls,
 // bury the sleeping module under regolith, then get everyone into the storm shelter
@@ -57,6 +57,7 @@ export class Mission6 implements GameMission {
       airlock: outpost.airlockPos.clone().add(new THREE.Vector3(0.3, 2, 0)),
     };
     onRadEvent((e) => {
+      if (missionNumber.value !== 6) return;
       if (e === 'scanned' && rad.value.scans.length === 3) this.complete('survey');
       if (e === 'bermsDone') this.complete('berm');
       if (e === 'arrived' && !rad.value.sheltered) {
@@ -66,7 +67,7 @@ export class Mission6 implements GameMission {
       if (e === 'stormOver') this.complete('storm');
       this.publish();
     });
-    onAllSent(() => this.complete('crew'));
+    onAllSent(() => missionNumber.value === 6 && this.complete('crew'));
   }
 
   end() {

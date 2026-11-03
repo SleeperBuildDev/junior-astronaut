@@ -442,6 +442,50 @@ export const CARDS: Record<string, Card> = {
     inGame: 'You change the motor in seconds. The real ISS pump module weighs about 350 kg and took three spacewalks to replace.',
     source: 'NASA ISS Active Thermal Control System; ISS pump module replacement (2010)',
   },
+  filters: {
+    id: 'filters',
+    title: 'Cleaning water in space',
+    icon: '💧',
+    body: [
+      'On the International Space Station, the Water Recovery System turns sweat, moisture from the crew’s breath and even urine back into clean drinking water. In 2023 NASA announced that it now recovers about 98% of the water.',
+      'Its filters catch particles and chemicals and slowly fill up, so crews replace them regularly. Spare filters are some of the most important supplies on a long mission.',
+    ],
+    inGame: 'Water use and recovery are simplified. Real recyclers have several cleaning stages, and some water is also split to make oxygen.',
+    source: 'NASA ISS Environmental Control and Life Support System (2023)',
+  },
+  relay: {
+    id: 'relay',
+    title: 'Talking to Earth',
+    icon: '📡',
+    body: [
+      'Seen from the near side of the Moon, Earth stays in almost the same place in the sky. It only wobbles a little, so a dish can stay pointed at it for years.',
+      'Near the south pole, Earth sits very low, and hills can block it. That is why NASA is planning relay satellites around the Moon to pass messages between the surface and Earth.',
+    ],
+    inGame: 'Messages here arrive instantly. Real radio signals take about 1.3 seconds to travel between Earth and the Moon.',
+    source: 'NASA Lunar Communications Relay and Navigation Systems; NASA Space Communications and Navigation',
+  },
+  liion: {
+    id: 'liion',
+    title: 'Batteries wear out',
+    icon: '🔋',
+    body: [
+      'Every time a battery charges and discharges, it wears a little. Between 2017 and 2021, astronauts on spacewalks replaced the space station’s old nickel-hydrogen batteries with newer lithium-ion ones.',
+      'Each battery has sensors that watch its temperature and voltage. If a cell starts to fail, the system can switch that battery off before it becomes dangerous.',
+    ],
+    inGame: 'The game uses simple battery “modules”. Real battery packs have many cells, chargers and cooling systems.',
+    source: 'NASA ISS battery replacement spacewalks (2017–2021)',
+  },
+  closedloop: {
+    id: 'closedloop',
+    title: 'Living off the land',
+    icon: '🌙',
+    body: [
+      'The more an outpost can recycle and make for itself, the less has to be launched from Earth. Recycling air and water, growing food and making oxygen from regolith all help to “close the loop”.',
+      'NASA’s Artemis program plans a long-term human presence at the Moon’s south pole, where long sunlight and ice make this easier. What crews learn there will help them on Mars, which is much farther from home.',
+    ],
+    inGame: 'Your 30 days are sped up and simplified. A real base would take many years to grow and would still need some supplies from Earth.',
+    source: 'NASA Artemis program; NASA Moon to Mars architecture',
+  },
 };
 
 /** The card in the current UI language (Burmese falls back to English per field). */

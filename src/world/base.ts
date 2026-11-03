@@ -53,6 +53,16 @@ export interface Outpost {
     labPortPos: THREE.Vector3;
   };
   emergency: EmergencyRig;
+  settlement: SettlementRig;
+}
+
+/** Mission 9: repair points for the new emergencies and the facilities you can build. */
+export interface SettlementRig {
+  filterPos: THREE.Vector3;
+  antennaPos: THREE.Vector3;
+  batteryPos: THREE.Vector3;
+  /** Each buildable facility: its model (grows while being built) and its collider. */
+  facilities: Partial<Record<'solar' | 'battery' | 'oxygen' | 'water' | 'comms' | 'workshop' | 'lab' | 'shelter', { group: THREE.Group; collider: ColliderSpec }>>;
 }
 
 /** Mission 8: damage on the solar towers, leak-check fittings on HAB-2, the cooling radiator. */
@@ -1180,6 +1190,113 @@ export function buildOutpost(models: OutpostModels): Outpost {
     rotors: { a: rotorA, b: rotorB },
   };
 
+  // ---------- Mission 9: antenna and battery repair points, buildable facilities ----------
+  const antBoxPos = new THREE.Vector3(-22.4, 0, -32.8);
+  antBoxPos.y = heightAt(antBoxPos.x, antBoxPos.z);
+  strut(antBoxPos.clone(), antBoxPos.clone().add(new THREE.Vector3(0, 1.0, 0)), 0.04, mats.alu, group);
+  const antBox = mesh(new RoundedBoxGeometry(0.5, 0.42, 0.26, 2, 0.04), mats.white, group, [antBoxPos.x, antBoxPos.y + 1.2, antBoxPos.z]);
+  antBox.rotation.y = Math.atan2(bx - antBoxPos.x, bz - antBoxPos.z);
+  mesh(new THREE.SphereGeometry(0.045, 10, 8), mats.green, group, [antBoxPos.x, antBoxPos.y + 1.46, antBoxPos.z]);
+  tube([antBoxPos.clone().add(new THREE.Vector3(0, 1.0, 0)), new THREE.Vector3(-23.2, antBoxPos.y + 0.1, -33.4), new THREE.Vector3(-24, antBoxPos.y + 0.5, -34)], 0.025, mats.rubber, group);
+  interactables.push({ id: 'antenna-box', object: antBox, label: () => 'p.antenna', minMission: 9 });
+  colliders.push({ kind: 'cylinder', center: antBoxPos.clone().add(new THREE.Vector3(0, 0.7, 0)), halfHeight: 0.7, radius: 0.25 });
+  // The battery cabinets' doors (an invisible panel over them, so you can look at the bank)
+  const cab = mesh(new THREE.BoxGeometry(0.04, 1.4, 3.6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), pduFrame, [-1.16, 1.0, -2.95]);
+  cab.castShadow = false;
+  interactables.push({ id: 'battery-cab', object: cab, label: () => 'p.batteryCab', minMission: 9 });
+
+  const facilities: SettlementRig['facilities'] = {};
+  const site = (id: keyof SettlementRig['facilities'], x: number, z: number, ry: number, collider: ColliderSpec) => {
+    const g = new THREE.Group();
+    place(g, x, z, ry);
+    g.visible = false;
+    facilities[id] = { group: g, collider };
+    return g;
+  };
+  // A fourth solar tower beside the others, already unrolled
+  {
+    const v = vsat(12);
+    v.upper.position.y = v.deployedY;
+    for (const w of v.wings) w.scale.y = 1;
+    v.head.rotation.y = Math.atan2(SUN_DIR.x, SUN_DIR.z) - Math.atan2(pduX - 50, pduZ + 40);
+    const g = site('solar', 50, -40, Math.atan2(pduX - 50, pduZ + 40), { kind: 'cylinder', center: new THREE.Vector3(50, heightAt(50, -40) + 6, -40), halfHeight: 6, radius: 0.5 });
+    g.add(v.group);
+    blinkers.push({ mesh: v.beacon, period: 2.0, phase: 1.3 });
+  }
+  // More battery cabinets lined up behind the first bank
+  {
+    const g = new THREE.Group();
+    g.visible = false;
+    pduFrame.add(g);
+    const b2 = instance(models.battery_bank);
+    b2.position.set(-0.4, 0, -6.95);
+    b2.rotation.y = -Math.PI / 2;
+    g.add(b2);
+    facilities.battery = { group: g, collider: { kind: 'box', center: local(-0.4, 1.0, -6.95), half: new THREE.Vector3(0.85, 1.0, 1.95), quat: pduQuat } };
+  }
+  // Oxygen plant: a regolith hopper, a hot reactor and white oxygen tanks
+  {
+    const x = bx + 17;
+    const z = bz + 10.5;
+    const g = site('oxygen', x, z, 0.2, { kind: 'box', center: new THREE.Vector3(x, by + 1.2, z), half: new THREE.Vector3(2.2, 1.2, 1.4) });
+    mesh(new THREE.BoxGeometry(4.2, 0.2, 2.4), mats.dark, g, [0, 0.1, 0]);
+    for (const zz of [-0.7, 0, 0.7]) mesh(new THREE.CylinderGeometry(0.3, 0.3, 2.2, 18), mats.white, g, [-0.9, 0.55, zz], [0, 0, Math.PI / 2]);
+    mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.4, 20), mats.alu, g, [1.0, 0.9, 0]);
+    mesh(new THREE.CylinderGeometry(0.7, 0.25, 0.8, 20), mats.hazard, g, [1.0, 2.0, 0]);
+    mesh(new THREE.SphereGeometry(0.07, 10, 8), mats.amber, g, [1.0, 1.65, 0.56]);
+  }
+  // Second water recycler next to the life-support unit
+  {
+    const x = bx + 17.5;
+    const z = bz + 6.8;
+    const g = site('water', x, z, Math.PI / 2, { kind: 'box', center: new THREE.Vector3(x, by + 1.0, z), half: new THREE.Vector3(1.1, 1.0, 1.5) });
+    g.add(instance(models.power_unit));
+    const tag = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshStandardMaterial({ map: labelTexture('WATER-2'), roughness: 0.8 }));
+    tag.position.set(0, 2.2, 1.02);
+    g.add(tag);
+  }
+  // A second, bigger dish for a backup link
+  {
+    const g = site('comms', -17, -42, 0.6, { kind: 'box', center: new THREE.Vector3(-17, heightAt(-17, -42) + 4, -42), half: new THREE.Vector3(0.9, 4, 0.9) });
+    g.add(antenna());
+  }
+  // Workshop: a rounded shed with a wide door
+  {
+    const x = bx - 19;
+    const z = bz + 6;
+    const g = site('workshop', x, z, Math.PI / 2, { kind: 'box', center: new THREE.Vector3(x, by + 1.3, z), half: new THREE.Vector3(1.8, 1.3, 2.6) });
+    const shell = new THREE.CylinderGeometry(1.8, 1.8, 5, 24, 1, false, 0, Math.PI);
+    shell.rotateZ(Math.PI / 2);
+    shell.rotateY(Math.PI / 2);
+    mesh(shell, mats.white, g, [0, 0, 0]);
+    mesh(new THREE.BoxGeometry(2.0, 1.9, 0.08), mats.dark, g, [0, 0.95, 2.5]);
+    mesh(new THREE.BoxGeometry(2.1, 0.1, 0.1), mats.hazard, g, [0, 1.95, 2.52]);
+  }
+  // Science hut: a short drum with a dome for instruments
+  {
+    const x = bx - 3;
+    const z = bz + 19;
+    const g = site('lab', x, z, 0, { kind: 'cylinder', center: new THREE.Vector3(x, by + 1.3, z), halfHeight: 1.3, radius: 1.7 });
+    mesh(new THREE.CylinderGeometry(1.6, 1.6, 1.8, 28), mats.white, g, [0, 0.9, 0]);
+    mesh(new THREE.SphereGeometry(1.6, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), mats.alu, g, [0, 1.8, 0]);
+    mesh(new THREE.BoxGeometry(0.9, 1.5, 0.1), mats.dark, g, [0, 0.75, 1.6]);
+  }
+  // Extra shelter: a regolith-covered dome
+  {
+    const x = bx - 14;
+    const z = bz + 19;
+    const g = site('shelter', x, z, 0, { kind: 'ball', center: new THREE.Vector3(x, by, z), radius: 2.6 });
+    const dome = mesh(new THREE.SphereGeometry(2.6, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x77736c, roughness: 1 }), g, [0, 0, 0]);
+    dome.scale.y = 0.75;
+    mesh(new THREE.BoxGeometry(1.0, 1.5, 1.2), mats.white, g, [0, 0.75, 2.3]);
+  }
+  const settlementRig: SettlementRig = {
+    filterPos: ls.filter.getWorldPosition(new THREE.Vector3()),
+    antennaPos: new THREE.Vector3(antBoxPos.x, antBoxPos.y + 1.2, antBoxPos.z),
+    batteryPos: local(-1.2, 1.2, -2.95),
+    facilities,
+  };
+
   let floodLamp: THREE.MeshStandardMaterial | null = null;
   models.floodlight.traverse((c) => {
     const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -1197,6 +1314,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     rover,
     science: { sites, labPortPos: new THREE.Vector3(samplePortX - 0.1, by + 1.45, samplePortZ) },
     emergency: emergencyRig,
+    settlement: settlementRig,
     power: {
       pos: new THREE.Vector3(pduX, by, pduZ),
       terminalPos: local(-2.26, 1.45, 0.55),

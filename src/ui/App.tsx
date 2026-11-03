@@ -4,11 +4,12 @@ import { setVolume } from '../audio/audio';
 import { settings, updateSettings, type Quality } from '../engine/settings';
 import { cardFor, CARDS } from '../game/knowledge';
 import { life, O2_STEPS, o2Step, SAFE_O2, startWater, type SysState } from '../game/lifesupport';
-import { kwOf, aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState } from '../game/power';
+import { capacityKWh, kwOf, aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState, type LoadId } from '../game/power';
 import { MISSION_COUNT, progress } from '../game/save';
 import { blockers, build, built, FACILITIES, kits, type FacilityId } from '../game/construction';
 import { CREW, crew, sendToShelter } from '../game/crew';
 import { analyze, answer, CORRECT, science, SITE_NAMES } from '../game/science';
+import { has, rates, setSpeed, settlement, SETTLE_DAYS, score, type Speed } from '../game/settlement';
 import { closeReport, detector, diagnose, emergency, EMERGENCIES, respond, type EmId } from '../game/emergency';
 import { BERMS, bermsDone, rad, SHIELDED_MSV_DAY, STORM_HOURS, STORM_OUTSIDE_MSV_H, STORM_SHELTER_MSV_H, SURFACE_MSV_DAY, SURVEY, type SurveyId } from '../game/radiation';
 import { adjustPh, chooseLight, CROPS, fillTank, greenhouse, growth, microGrowth, LIGHT_CYCLES, MICRO_DAYS, PH_OK, plant, TANK_LITRES, toggleTray, TRAYS, trayProblem, type CropId } from '../game/greenhouse';
@@ -49,9 +50,12 @@ export interface Actions {
   closeTerminal: () => void;
   skipCutscene: () => void;
   setQuality: (q: Quality) => void;
+  /** Mission 9: the final report's "finish" button. */
+  finishSettlement?: () => void;
 }
 
 const CONTROLS: [string, string][] = [
+  ['T', 'ctrl.settle'],
   ['W A S D', 'ctrl.walk'],
   ['key.mouse', 'ctrl.look'],
   ['Space', 'ctrl.jump'],
@@ -252,7 +256,7 @@ function Hud() {
 /** Outpost power at a glance: solar input, battery charge and what the base is using. */
 function BasePanel() {
   const p = power.value;
-  const pct = (p.batteryKWh / BATTERY_KWH) * 100;
+  const pct = (p.batteryKWh / capacityKWh(p)) * 100;
   return (
     <div class="panel base">
       <div class="panel-title">{t('hud.base')}</div>
@@ -308,8 +312,11 @@ function EmergencyRows() {
 function emReading(id: EmId) {
   const e = emergency.value;
   const p = power.value;
-  if (id === 'solar') return t('em.read.solar', { kw: num(solarKW(p).toFixed(1)), pct: num(Math.round((p.batteryKWh / BATTERY_KWH) * 100)) });
+  if (id === 'solar' || id === 'battery') return t('em.read.solar', { kw: num(solarKW(p).toFixed(1)), pct: num(Math.round((p.batteryKWh / capacityKWh(p)) * 100)) });
   if (id === 'leak') return t('em.read.leak', { kpa: num(e.kpa.toFixed(1)) });
+  if (id === 'recycler') return t('em.read.recycler', { l: num(Math.round(life.value.waterL)) });
+  if (id === 'comms') return t('em.read.comms.' + e.link);
+  if (id === 'storm') return rad.value.weather === 'warning' ? t('em.read.storm', { t: mmss(rad.value.countdown) }) : t('rad.banner.storm');
   return t('em.read.thermal', { c: num(e.tempC.toFixed(1)) });
 }
 
@@ -1338,7 +1345,7 @@ function ReportTerminal({ actions }: { actions: Actions }) {
   const total = Math.round(r.minutes);
   const h = Math.floor(total / 60);
   const m = total % 60;
-  const worst = id === 'solar' ? num(Math.round(r.worst)) : num(r.worst.toFixed(1));
+  const worst = id === 'solar' || id === 'battery' || id === 'recycler' ? num(Math.round(r.worst)) : num(r.worst.toFixed(1));
   return (
     <div class="modal-backdrop">
       <div class="modal terminal aar">
@@ -1375,6 +1382,199 @@ function ReportTerminal({ actions }: { actions: Actions }) {
           }}
         >
           {t('aar.file')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const SPEED_LIST: { id: Speed; icon: string }[] = [
+  { id: 'normal', icon: '▶' },
+  { id: 'fast', icon: '⏩' },
+  { id: 'fastest', icon: '⏭' },
+];
+
+/** Mission 9 at a glance: the clock, every resource with its daily rate, crew, power and building. */
+function SettlementPanel() {
+  const st = settlement.value;
+  const e = emergency.value;
+  const p = power.value;
+  const r = rates();
+  const cap = capacityKWh(p);
+  const day = Math.min(SETTLE_DAYS, st.day);
+  const busy = !!e.active;
+  const lasts = (amount: number, rate: number) => (rate < -1e-6 ? t('st.lasts', { n: num((amount / -rate).toFixed(1)) }) : t('st.steady'));
+  const sign = (v: number, digits = 1) => (v >= 0 ? '+' : '−') + num(Math.abs(v).toFixed(digits));
+  const net = solarKW(p) - loadKW(p);
+  const row = (icon: string, name: string, value: string, rate: string, note: string, bad = false) => (
+    <div class={`st-row ${bad ? 'bad' : ''}`}>
+      <span>
+        {icon} {t(name)}
+      </span>
+      <b>{value}</b>
+      <em>{rate}</em>
+      <small>{note}</small>
+    </div>
+  );
+  const SWITCH: LoadId[] = ['gh', 'lab', 'rover', 'flood'];
+  return (
+    <div class="settle">
+      <div class="st-top">
+        <div class="st-day">
+          <span>{t('st.day')}</span>
+          <b>
+            {num(Math.floor(day))} / {num(SETTLE_DAYS)}
+          </b>
+          <div class="bar">
+            <i style={{ width: `${(day / SETTLE_DAYS) * 100}%` }} />
+          </div>
+        </div>
+        <div class="st-speed">
+          <span>{t('st.speed')}</span>
+          <div>
+            {SPEED_LIST.map((x) => (
+              <button class={`btn small ${st.speed === x.id ? 'primary' : ''}`} data-speed={x.id} disabled={busy && x.id !== 'normal'} onClick={() => setSpeed(x.id)}>
+                {x.icon} {t('st.speed.' + x.id)}
+              </button>
+            ))}
+          </div>
+          {busy ? <small class="fault">{t('st.busy')}</small> : null}
+        </div>
+      </div>
+      <div class="st-cols">
+        <div>
+          <h3>{t('st.supplies')}</h3>
+          {row('⚡', 'st.power', `${num(solarKW(p).toFixed(1))} / ${num(loadKW(p).toFixed(1))} kW`, `${sign(net)} kW`, t('st.powerNote'), net < 0)}
+          {row('🔋', 'hud.battery', `${num(Math.round(p.batteryKWh))} / ${num(Math.round(cap))} kWh`, '', net < 0 ? t('st.hours', { n: num((p.batteryKWh / -net).toFixed(1)) }) : t('st.charging'), p.batteryKWh / cap < 0.2)}
+          {row('🧪', 'hud.o2res', `${num(Math.round(e.o2Reserve))}%`, `${sign(r.o2Pct)}%/${t('st.perDay')}`, lasts(e.o2Reserve, r.o2Pct), e.o2Reserve < 30)}
+          {row('💧', 'hud.water', `${num(Math.round(life.value.waterL))} L`, `${sign(r.water)} L/${t('st.perDay')}`, lasts(life.value.waterL, r.water), life.value.waterL < 20)}
+          {row('🍽', 'hud.food', t('hud.days', { n: num(Math.floor(greenhouse.value.foodDays)) }), `${sign(r.food)}/${t('st.perDay')}`, lasts(greenhouse.value.foodDays, r.food), greenhouse.value.foodDays < 3)}
+          {row('🌡', 'hud.hab1temp', `${num(e.tempC.toFixed(1))} °C`, '', t('st.tempNote'), e.tempC < 15 || e.tempC > 28)}
+          {row('🔧', 'st.condition', `${num(Math.round(st.condition))}%`, '', t(has('workshop') ? 'st.condWorkshop' : 'st.condNote'))}
+          <p class="st-explain">{t('st.explain', { breathe: num(r.breathe.toFixed(1)), gen: num(r.gen.toFixed(1)), use: num(Math.round(r.use)), rec: num(Math.round(r.recovery * 100)) })}</p>
+        </div>
+        <div>
+          <h3>{t('st.crew')}</h3>
+          {CREW.map((m) => {
+            const c = crew.value[m.id];
+            return (
+              <div class="st-crew">
+                <span>
+                  {m.icon} {t('crew.name.' + m.id)}
+                </span>
+                <div class="bar">
+                  <i style={{ width: `${c.health}%`, background: c.health > 60 ? 'var(--green)' : c.health > 35 ? 'var(--amber)' : 'var(--red)' }} />
+                </div>
+                <b>{num(Math.round(c.health))}%</b>
+              </div>
+            );
+          })}
+          <h3>{t('st.switches')}</h3>
+          <div class="st-switches">
+            {SWITCH.map((id) => (
+              <button class={`btn small ${p.loads[id] ? 'on' : ''}`} data-load={id} onClick={() => setLoad(id, !p.loads[id])}>
+                {p.loads[id] ? '●' : '○'} {t('load.' + id)} · {num(kwOf(id, p).toFixed(1))} kW
+              </button>
+            ))}
+          </div>
+          <small class="st-note">{t('st.essential')}</small>
+          <h3>{t('st.facilities')}</h3>
+          <ul class="st-fac">
+            {st.running.map((id) => (
+              <li>
+                ✓ {t('fac.' + id)}
+              </li>
+            ))}
+            {st.building.map((b) => (
+              <li class="todo">
+                🏗 {t('fac.' + b.id)} · {t('st.hoursLeft', { n: num(Math.ceil(b.hours)) })}
+              </li>
+            ))}
+            {!st.running.length && !st.building.length ? <li class="todo">{t('st.noneYet')}</li> : null}
+          </ul>
+          <small class="st-note">{t('st.buildWhere')}</small>
+          <h3>{t('st.forecast')}</h3>
+          <ul class="st-fac">
+            {day < 4 ? <li>📦 {t('st.fc.cargo')}</li> : null}
+            {day < 10 ? <li>🌗 {t('st.fc.shadow')}</li> : null}
+            <li>☢ {t('st.fc.storm')}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Mission 9's end: the settlement report (or why the crew had to leave). */
+function FinalReport({ actions }: { actions: Actions }) {
+  const st = settlement.value;
+  const e = emergency.value;
+  const reps = Object.entries(e.reports).filter(([id]) => id !== 'storm');
+  const firstTry = reps.filter(([, r]) => r!.tries <= 1).length;
+  const sc = score(firstTry);
+  if (st.failed) {
+    return (
+      <div class="modal-backdrop">
+        <div class="modal terminal aar">
+          <div class="modal-head">
+            <h2>🚨 {t('fin.failTitle')}</h2>
+          </div>
+          <p>{t('fin.failText', { d: num(Math.floor(st.day)) })}</p>
+          <ul class="em-evidence">
+            {life.value.waterL <= 0 ? <li>{t('fin.why.water')}</li> : null}
+            {greenhouse.value.foodDays <= 0 ? <li>{t('fin.why.food')}</li> : null}
+            {e.o2Reserve <= 0 ? <li>{t('fin.why.o2')}</li> : null}
+            {e.tempC < 12 ? <li>{t('fin.why.cold')}</li> : null}
+            {e.tempC > 30 ? <li>{t('fin.why.hot')}</li> : null}
+          </ul>
+          <p class="st-explain">{t('fin.tips')}</p>
+          <div class="menu-buttons row">
+            <button class="btn" onClick={actions.toMenu}>
+              {t('complete.menu')}
+            </button>
+            <button class="btn primary" data-action="retry" onClick={actions.restart}>
+              {t('complete.again')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal aar final-report">
+        <div class="modal-head">
+          <h2>🏁 {t('fin.title')}</h2>
+        </div>
+        <div class="fin-stars">
+          {[1, 2, 3].map((k) => (
+            <span class={k <= sc.stars ? 'on' : ''}>★</span>
+          ))}
+          <b>{t('fin.score', { n: num(sc.total) })}</b>
+          <em>{t('fin.rank.' + sc.stars)}</em>
+        </div>
+        <div class="fin-rows">
+          <div>
+            <span>👩‍🚀 {t('fin.crew', { h: num(Math.round(sc.avg)) })}</span>
+            <b>{num(sc.crewPts)} / {num(40)}</b>
+          </div>
+          <div>
+            <span>💧🍽🧪 {t('fin.supplies', { w: num(Math.round(life.value.waterL)), f: num(Math.floor(greenhouse.value.foodDays)), o: num(Math.round(e.o2Reserve)) })}</span>
+            <b>{num(sc.supplyPts)} / {num(30)}</b>
+          </div>
+          <div>
+            <span>🚨 {t('fin.emergencies', { n: num(reps.length), first: num(firstTry) })}</span>
+            <b>{num(sc.emPts)} / {num(20)}</b>
+          </div>
+          <div>
+            <span>🏗 {t('fin.built', { list: st.running.map((id) => t('fac.' + id)).join(', ') || '—' })}</span>
+            <b>{num(sc.buildPts)} / {num(10)}</b>
+          </div>
+        </div>
+        <p class="st-explain">{t('fin.low', { b: num(Math.round(st.low.battery)), w: num(Math.round(st.low.water)), o: num(Math.round(st.low.o2)) })}</p>
+        <p>{t('fin.text')}</p>
+        <button class="btn primary small confirm" data-action="finish" onClick={() => actions.finishSettlement?.()}>
+          {t('fin.finish')}
         </button>
       </div>
     </div>
@@ -1614,6 +1814,7 @@ function Panel({ actions }: { actions: Actions }) {
         {p === 'credits' && <Credits />}
         {p === 'missions' && <MissionSelect actions={actions} />}
         {p === 'crew' && <CrewPanel />}
+        {p === 'colony' && <SettlementPanel />}
       </div>
     </div>
   );
@@ -1736,8 +1937,7 @@ function Complete({ actions }: { actions: Actions }) {
         </p>
         {next ? null : (
           <p class="next">
-            <b>{t('complete.soonTitle')}</b>
-            {t('complete.soonRest')}
+            <b>{t('complete.finaleTitle')}</b> {t('complete.finale')}
           </p>
         )}
         <div class="menu-buttons row">
@@ -1842,6 +2042,7 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'playing' && terminal.value === 'alert' && <AlertTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'diag' && <DiagTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'aar' && <ReportTerminal actions={actions} />}
+      {sc === 'playing' && terminal.value === 'final' && <FinalReport actions={actions} />}
       {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>
