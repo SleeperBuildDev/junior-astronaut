@@ -55,7 +55,6 @@ export interface Actions {
 }
 
 const CONTROLS: [string, string][] = [
-  ['T', 'ctrl.settle'],
   ['W A S D', 'ctrl.walk'],
   ['key.mouse', 'ctrl.look'],
   ['Space', 'ctrl.jump'],
@@ -64,6 +63,7 @@ const CONTROLS: [string, string][] = [
   ['F', 'ctrl.light'],
   ['K', 'ctrl.kc'],
   ['C', 'ctrl.crew'],
+  ['T', 'ctrl.settle'],
   ['Esc', 'ctrl.pause'],
   ['↑ ↓ ← →', 'ctrl.arrows'],
 ];

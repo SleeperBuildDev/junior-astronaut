@@ -74,7 +74,10 @@ Done and tested (git history has one commit per milestone):
 - Cutscenes: Mission 1 landing intro (descent + ballistic dust), Mission 1 ending, Mission 2 intro + ending.
 - Procedural sound effects (Web Audio), machinery hum, ambient music.
 
-**All nine missions are built.** Possible next steps: polish from playtesting, hosting (GitHub Pages).
+**Version 1.0.0: all nine missions are built and the production build is tested** (`npm run build`,
+`npm run preview` on port 4173, `node qa/prod.mjs` opens every mission on the built site). `README.md`
+explains play/build/hosting; `.github/workflows/pages.yml` deploys `dist/` to GitHub Pages once the repo
+is pushed (no remote yet: ask the owner before publishing). Test screenshots (`qa/*.png`) are not committed.
 
 ## Run, test, build
 
