@@ -946,7 +946,8 @@ export function buildDiscoveries(env: DiscoveryEnv) {
   }
 
   // ---------- the legendary cutscene ----------
-  function shots(id: string, feet: THREE.Vector3): Shot[] {
+  /** plain: no gold light, title, narration or sounds (the music video reuses the camera work). */
+  function shots(id: string, feet: THREE.Vector3, plain = false): Shot[] {
     const it = items.find((i) => i.def.id === id)!;
     active = it;
     const P = it.world.clone();
@@ -976,6 +977,7 @@ export function buildDiscoveries(env: DiscoveryEnv) {
       A.lamp.intensity = 0;
     };
     const glow = (k: number) => {
+      if (plain) k = 0;
       goldLight.visible = beam.visible = motes.visible = k > 0.001;
       goldLight.position.copy(up(P, 0.8));
       goldLight.intensity = 14 * k;
@@ -1009,8 +1011,8 @@ export function buildDiscoveries(env: DiscoveryEnv) {
       dur: 3.2,
       start: () => {
         setupAstronaut();
-        it.glint.visible = true;
-        sfx('legend');
+        it.glint.visible = !plain;
+        if (!plain) sfx('legend');
       },
       update: (k, dt) => {
         tick(dt);
@@ -1185,7 +1187,7 @@ export function buildDiscoveries(env: DiscoveryEnv) {
           cam.lookAt(ballP.clone().addScaledVector(fwd, 2));
         },
       };
-      return [approach, swing, follow, visor, crane, end()];
+      return plain ? strip([approach, swing, follow, visor, crane, end()]) : [approach, swing, follow, visor, crane, end()];
     }
     if (special === 'hammer') {
       // Hammer and feather, dropped together: they land together (no air to slow the feather).
@@ -1248,7 +1250,7 @@ export function buildDiscoveries(env: DiscoveryEnv) {
           cam.lookAt(up(mid, 0.95 - k * 0.35));
         },
       };
-      return [approach, drop, visor, crane, end()];
+      return plain ? strip([approach, drop, visor, crane, end()]) : [approach, drop, visor, crane, end()];
     }
     if (special === 'ice') {
       // The lamp sweeps across the dark crater floor and the frost glitters.
@@ -1386,21 +1388,35 @@ export function buildDiscoveries(env: DiscoveryEnv) {
         lens(cam, 50 - ease(k) * 26);
       };
     }
-    return [approach, reveal, visor, crane, end()];
+    const out = [approach, reveal, visor, crane, end()];
+    return plain ? strip(out) : out;
 
     function end(): Shot {
       return { dur: 0.01, cam: () => {} };
     }
   }
 
+  function strip(list: Shot[]) {
+    for (const sh of list) {
+      sh.gold = false;
+      sh.sub = undefined;
+      sh.vo = undefined;
+    }
+    return list;
+  }
+  /** Finds shown regardless of the mission (the music video). */
+  const forced = new Set<string>();
+
   let scanAcc = 0;
   let t = 0;
-  return {
+  const api = {
     group,
     interactables,
     colliders,
     shots,
     cleanup,
+    /** Renders the gold visor's reflection of the scene right now. */
+    refreshVisor,
     /** id of the find under an interactable id, or null. */
     idOf(interactId: string) {
       return interactId.startsWith('disc-') ? interactId.slice(5) : null;
@@ -1415,14 +1431,14 @@ export function buildDiscoveries(env: DiscoveryEnv) {
       t += dt;
       let nearest = Infinity;
       for (const it of items) {
-        const here = it.def.mission === mission;
+        const here = it.def.mission === mission || forced.has(it.def.id);
         it.b.obj.visible = here;
         if (!here) continue;
         const isFound = found.includes(it.def.id);
         it.b.update?.(dt, t, lampOn || (cutscene && active === it) ? 1 : 0);
         if (cutscene && active === it) continue;
         const d = feet ? Math.hypot(feet.x - it.world.x, feet.z - it.world.z) : Infinity;
-        it.glint.visible = !isFound && d < 140;
+        it.glint.visible = !isFound && d < 140 && api.glints;
         if (it.glint.visible) {
           const pulse = 0.5 + 0.5 * Math.sin(t * 2.4 + it.world.x);
           const s = (0.5 + pulse * 0.35) * THREE.MathUtils.clamp(d / 22, 0.6, 3.2);
@@ -1443,10 +1459,18 @@ export function buildDiscoveries(env: DiscoveryEnv) {
       }
       return nearest;
     },
+    /** Show these finds in every mission (or none with an empty list). */
+    force(ids: string[]) {
+      forced.clear();
+      for (const id of ids) forced.add(id);
+    },
+    /** Hides the gold glints (the music video). */
+    glints: true,
     /** QA: where each find is. */
     list() {
       return items.map((it) => ({ id: it.def.id, mission: it.def.mission, x: +it.world.x.toFixed(1), z: +it.world.z.toFixed(1), y: +it.world.y.toFixed(1) }));
     },
   };
+  return api;
 }
 export type Discoveries = ReturnType<typeof buildDiscoveries>;

@@ -3,3 +3,6 @@ dist
 assets-src/glb/*.png
 qa/*.png
 qa/*.log
+
+# Music video working files (song, renders, fonts, lyrics) stay local
+mtv/

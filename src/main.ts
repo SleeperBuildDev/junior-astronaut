@@ -54,6 +54,8 @@ import { buildSky, SUN_DIR, sunlight, sunPath } from './world/sky';
 import { buildTerrain, regolithMaterial } from './world/terrain';
 
 const QA = new URLSearchParams(location.search).has('qa');
+/** ?film: the music video (src/mtv/film.ts), stepped frame by frame by qa/film.mjs. */
+const FILM = new URLSearchParams(location.search).has('film');
 
 // Suit model (simplified for gameplay): a real suit holds about 8 hours of oxygen.
 const O2_PER_SEC = 100 / (14 * 60); // a full tank lasts ~14 real minutes of walking
@@ -570,7 +572,7 @@ async function boot() {
   const bodyVel = new THREE.Vector3();
   const printFeet = new THREE.Vector3();
   let walkAcc = 0;
-  renderer.setAnimationLoop((t) => {
+  const loop = (t: number) => {
     timer.update(t);
     const dt = Math.min(timer.getDelta(), 0.1);
     const inMission = screen.value === 'playing' && !panel.value;
@@ -746,7 +748,8 @@ async function boot() {
     }
     renderer.info.reset();
     pipeline.render(dt);
-  });
+  };
+  renderer.setAnimationLoop(FILM ? null : loop);
 
   function simulateSuit(dt: number) {
     const s = { ...suit.value };
@@ -1004,6 +1007,31 @@ async function boot() {
         quality: (q: Quality) => actions.setQuality(q),
         sfx: (n: Sfx) => sfx(n),
         audio: () => audioState(),
+      },
+    });
+  }
+
+  // ---------- music video (?film) ----------
+  if (FILM) {
+    const { buildFilm, SONG } = await import('./mtv/film');
+    document.getElementById('ui-root')!.style.display = 'none';
+    actions.setQuality('high');
+    missionNumber.value = 9;
+    resetMission();
+    const shots = buildFilm({ scene, camera, outpost, scenes: scenes as unknown as Record<string, Shot[]>, astronaut, discoveries, fx, rover, sunScale });
+    let virtual = 0;
+    Object.assign(window, {
+      __film: {
+        length: SONG.length,
+        start: () => {
+          // One frame on the real clock first, so the virtual clock starts with a normal step.
+          loop((virtual = performance.now()));
+          playCut(shots, () => {});
+        },
+        /** Advances one frame of 1/fps seconds and renders it. */
+        frame: (fps = 30) => loop((virtual += 1000 / fps)),
+        /** The frame just rendered, as a JPEG data URL (same task, so the buffer is still there). */
+        grab: (q = 0.92) => renderer.domElement.toDataURL('image/jpeg', q),
       },
     });
   }

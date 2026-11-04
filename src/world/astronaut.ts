@@ -314,6 +314,13 @@ export class Astronaut {
   private bodyYaw: number | null = null;
   private idleT = 0;
 
+  /** Forget the last gait (a new cutscene shot starts from a clean pose and heading). */
+  resetGait() {
+    this.bodyYaw = null;
+    this.g = { ...STAND };
+    this.landDip = this.landVel = 0;
+  }
+
   /** A landing: the knees soak it up. */
   land(fall: number) {
     this.landVel -= Math.min(1.2, 0.25 + fall * 0.12);
