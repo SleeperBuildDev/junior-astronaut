@@ -271,6 +271,7 @@ async function boot() {
   player.yaw = startYaw;
   player.onLand = (fall) => {
     thud(fall);
+    bodyShadow.land(fall);
     fx.land(player!.feet, fall);
   };
   player.onStep = (k) => sfx('step', k);
@@ -566,6 +567,7 @@ async function boot() {
   screen.value = 'menu';
 
   const lastFeet = new THREE.Vector3();
+  const bodyVel = new THREE.Vector3();
   const printFeet = new THREE.Vector3();
   let walkAcc = 0;
   renderer.setAnimationLoop((t) => {
@@ -711,12 +713,16 @@ async function boot() {
     // Your own body's long shadow on the ground (Medium and High).
     const showBody = !!player && screen.value !== 'cutscene' && !rover.driving && settings.value.quality !== 'low';
     bodyShadow.root.visible = showBody;
-    if (showBody) {
+    if (showBody && dt > 0) {
+      // Real ground speed (smoothed), so the stride matches how far you actually moved.
       const f = player!.feet;
-      const sp = Math.hypot(f.x - lastFeet.x, f.z - lastFeet.z) / Math.max(dt, 1e-3);
+      const dx = f.x - lastFeet.x;
+      const dz = f.z - lastFeet.z;
+      if (Math.hypot(dx, dz) > 3) bodyVel.set(0, 0, 0); // teleported
+      else bodyVel.lerp(new THREE.Vector3(dx / dt, 0, dz / dt), 1 - Math.exp(-12 * dt));
       lastFeet.copy(f);
-      bodyShadow.place(f, player!.yaw + Math.PI);
-      bodyShadow.update(dt, Math.min(sp, 6));
+      bodyShadow.root.position.copy(f);
+      bodyShadow.gait(dt, screen.value === 'playing' ? bodyVel : bodyVel.set(0, 0, 0), player!.yaw, player!.grounded, player!.sprinting);
     }
     const now = t / 1000;
     for (const b of outpost.blinkers) b.mesh.visible = (now + b.phase) % b.period < b.period * 0.5;

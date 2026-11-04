@@ -73,8 +73,11 @@ Done and tested (git history has one commit per milestone):
   hooks `discoveries()`, `discover(id)`, `closeDiscovery()`.
 - **Ground effects** (`src/world/effects.ts`): instanced boot prints every 0.7 m walked, rover track
   marks + rooster-tail dust, ballistic dust on steps/landings (counts scale with quality). Your astronaut
-  (`src/world/astronaut.ts`, jointed code-built model with poses) appears in cutscenes; an invisible copy
-  follows you and casts your long shadow (Medium/High). QA: `node qa/groundfx.mjs [quality]`, hook `fx()`.
+  (`src/world/astronaut.ts`: lathe-shaped suit, hard upper torso, backpack, hoses, bellows joints, gloves,
+  overshoes; joints incl. ankles) appears in cutscenes via `pose()`; an invisible low-detail copy follows you
+  and casts your long shadow (Medium/High) via `gait()`: stride clock driven by real ground speed (no foot
+  sliding), lunar lope when sprinting, tuck in the air, spring squat on landing (`land()`), hips turn when
+  strafing. QA: `node qa/groundfx.mjs [quality]`, `node qa/astronaut.mjs` (model + shadow gait), hook `fx()`.
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
