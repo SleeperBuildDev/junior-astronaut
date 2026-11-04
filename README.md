@@ -19,6 +19,13 @@ Plays in English and Burmese (Myanmar), on a desktop PC with keyboard and mouse.
 8. **Emergency Response**: a damaged solar tower, an air leak, a failed cooling pump
 9. **Sustainable Lunar Settlement**: 30 days with every system linked
 
+## Secrets
+
+Every mission hides 2–3 secret discoveries off the guided path: an iron meteorite, ice in a
+shadowed crater, an old robot lander, a lava-tube skylight, and tributes to real Apollo moments
+(a golf ball, a hammer and feather, a family photo). Look for a gold glint and listen for the suit
+scanner's chirp. Each one plays its own cutscene and unlocks a bonus science card (22 in all).
+
 ## Controls
 
 W A S D move · mouse look · Space jump · Shift run · E use (hold E to repair) · F helmet lamp ·
@@ -44,8 +51,8 @@ Tip for teachers: add `?unlock=9` to the address to open every mission in Missio
 
 ## Performance
 
-Tested on an Intel UHD 770 integrated GPU at 1600×900: Medium quality runs at about
-100 fps. Quality (Low / Medium / High) can be changed in Settings.
+Tested on an Intel UHD 770 integrated GPU at 1600×900: Medium quality holds a smooth 60 fps;
+High adds boot prints, more dust and a sharper visor reflection, and dips below 60 at times. Quality (Low / Medium / High) can be changed in Settings.
 
 ## Built with
 

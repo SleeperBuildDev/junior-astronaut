@@ -294,6 +294,10 @@ export function setHum(level: number) {
 }
 
 export type Sfx =
+  | 'legend'
+  | 'golf'
+  | 'impact'
+  | 'anomaly'
   | 'step'
   | 'jump'
   | 'scan'
@@ -367,6 +371,34 @@ export function sfx(name: Sfx, strength = 1) {
     case 'complete':
       [523.3, 659.3, 784, 1046.5].forEach((f, i) => note({ type: 'triangle', freq: f, dur: 0.9, gain: 0.05, at: i * 0.14 }));
       note({ type: 'sine', freq: 261.6, dur: 1.8, gain: 0.04, at: 0.1, attack: 0.1 });
+      break;
+    case 'legend': {
+      // A rising shimmer, then a warm major chord that swells and rings: something legendary.
+      burst({ type: 'highpass', freq: 3000, freqEnd: 9000, dur: 2.2, gain: 0.018, attack: 1.6 });
+      note({ type: 'sine', freq: 220, freqEnd: 440, dur: 1.6, gain: 0.02, attack: 1.2 });
+      const chord = [261.6, 329.6, 392, 523.3, 659.3, 784];
+      chord.forEach((f, i) => {
+        note({ type: 'triangle', freq: f, dur: 4.2, gain: 0.03, at: 1.5 + i * 0.07, attack: 0.25 });
+        note({ type: 'sine', freq: f * 2.003, dur: 3.2, gain: 0.012, at: 1.55 + i * 0.07, attack: 0.3 });
+      });
+      note({ type: 'sine', freq: 130.8, dur: 4.5, gain: 0.05, at: 1.45, attack: 0.4 });
+      [1568, 2093, 2637, 3136].forEach((f, i) => note({ type: 'sine', freq: f, dur: 0.6, gain: 0.012, at: 2.0 + i * 0.12 }));
+      break;
+    }
+    case 'golf':
+      // Felt through the gloves: a crisp tick (no air to carry the sound).
+      note({ type: 'triangle', freq: 1900, freqEnd: 900, dur: 0.08, gain: 0.05 });
+      burst({ type: 'bandpass', freq: 2500, q: 2, dur: 0.06, gain: 0.03 });
+      break;
+    case 'impact':
+      // Silent in vacuum; you feel a faint rumble through the ground a moment later.
+      note({ type: 'sine', freq: 48, freqEnd: 30, dur: 1.6, gain: 0.08, at: 0.5, attack: 0.08 });
+      burst({ type: 'lowpass', freq: 160, freqEnd: 60, dur: 1.4, gain: 0.05, at: 0.5 });
+      break;
+    case 'anomaly':
+      // Suit scanner: a soft two-tone chirp, louder as you get closer.
+      note({ type: 'sine', freq: 1320, dur: 0.09, gain: 0.012 + 0.02 * strength });
+      note({ type: 'sine', freq: 1760, dur: 0.12, gain: 0.01 + 0.018 * strength, at: 0.08 });
       break;
     case 'unlock':
       note({ type: 'sine', freq: 1046.5, dur: 0.5, gain: 0.04 });

@@ -15,6 +15,8 @@ export interface Shot {
   cam: (t: number, cam: THREE.PerspectiveCamera) => void;
   sub?: string;
   caption?: string;
+  /** Shows the gold "legendary discovery" title (secret finds). */
+  gold?: boolean;
   vo?: string;
   start?: () => void;
   update?: (t: number, dt: number) => void;
@@ -130,7 +132,7 @@ export class CutscenePlayer {
     this.t = 0;
     const s = this.shots?.[this.i];
     if (!s) return this.finish();
-    cinema.value = { sub: s.sub ?? null, caption: s.caption ?? null };
+    cinema.value = { sub: s.sub ?? null, caption: s.caption ?? null, gold: !!s.gold };
     s.start?.();
     if (s.vo) void playNarration(s.vo);
   }
@@ -159,7 +161,7 @@ export class CutscenePlayer {
 
   private finish() {
     this.shots = null;
-    cinema.value = { sub: null, caption: null };
+    cinema.value = { sub: null, caption: null, gold: false };
     this.onDone();
   }
 }

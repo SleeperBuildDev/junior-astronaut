@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { setVolume } from '../audio/audio';
 import { settings, updateSettings, type Quality } from '../engine/settings';
 import { cardFor, CARDS } from '../game/knowledge';
+import { DISCOVERIES, SECRET_IDS } from '../game/discoveries';
 import { life, O2_STEPS, o2Step, SAFE_O2, startWater, type SysState } from '../game/lifesupport';
 import { capacityKWh, kwOf, aimArray, aimError, arrayKW, arrayPanel, ARRAY_KW, BATTERY_KWH, confirmPlan, deployArray, hoursLeft, LOADS, loadKW, LOCK_DEG, NIGHT_HOURS, power, setLoad, solarKW, sunYaw, type ArrayState, type LoadId } from '../game/power';
 import { MISSION_COUNT, progress } from '../game/save';
@@ -25,6 +26,7 @@ import {
   heading,
   holdProgress,
   knowledge,
+  legend,
   loadProgress,
   mission,
   missionNumber,
@@ -52,6 +54,8 @@ export interface Actions {
   setQuality: (q: Quality) => void;
   /** Mission 9: the final report's "finish" button. */
   finishSettlement?: () => void;
+  /** Closes the gold card shown after a secret discovery. */
+  closeDiscovery?: () => void;
 }
 
 const CONTROLS: [string, string][] = [
@@ -1673,12 +1677,26 @@ function KnowledgeCenter() {
   return (
     <div class="kc">
       <div class="kc-list">
-        {Object.keys(CARDS).map((id) => {
+        {Object.keys(CARDS)
+          .filter((id) => !SECRET_IDS.has(id))
+          .map((id) => {
+            const open = unlocked.includes(id);
+            const card = cardFor(id, lang)!;
+            return (
+              <button class={`kc-item ${sel === id ? 'sel' : ''}`} disabled={!open} onClick={() => setSel(id)}>
+                <span>{open ? card.icon : '🔒'}</span> {open ? card.title : t('kc.locked')}
+              </button>
+            );
+          })}
+        <div class="kc-secrets">
+          {t('kc.secrets', { n: num(DISCOVERIES.filter((d) => unlocked.includes(d.id)).length), total: num(DISCOVERIES.length) })}
+        </div>
+        {DISCOVERIES.map(({ id, mission: m }) => {
           const open = unlocked.includes(id);
           const card = cardFor(id, lang)!;
           return (
-            <button class={`kc-item ${sel === id ? 'sel' : ''}`} disabled={!open} onClick={() => setSel(id)}>
-              <span>{open ? card.icon : '🔒'}</span> {open ? card.title : t('kc.locked')}
+            <button class={`kc-item secret ${sel === id ? 'sel' : ''}`} disabled={!open} onClick={() => setSel(id)}>
+              <span>{open ? card.icon : '✦'}</span> {open ? card.title : t('kc.secretLocked', { n: num(m) })}
             </button>
           );
         })}
@@ -1935,6 +1953,9 @@ function Complete({ actions }: { actions: Actions }) {
         <p>
           {t(`complete.m${n}.text`)} {t('complete.facts', { n: num(knowledge.value.length) })}
         </p>
+        <p class="secret-count">
+          ✦ {t('complete.secrets', { n: num(DISCOVERIES.filter((d) => d.mission === n && knowledge.value.includes(d.id)).length), total: num(DISCOVERIES.filter((d) => d.mission === n).length) })}
+        </p>
         {next ? null : (
           <p class="next">
             <b>{t('complete.finaleTitle')}</b> {t('complete.finale')}
@@ -1965,8 +1986,17 @@ function Complete({ actions }: { actions: Actions }) {
 /** Letterbox bars, a location caption and subtitles over the cutscene camera. */
 function Cinema({ actions }: { actions: Actions }) {
   const c = cinema.value;
+  const gold = c.gold && legend.value ? cardFor(legend.value, settings.value.lang) : null;
+  const egg = DISCOVERIES.find((d) => d.id === legend.value)?.egg;
   return (
-    <div class="cinema">
+    <div class={`cinema ${legend.value ? 'legendary' : ''}`}>
+      {gold ? (
+        <div class="legend-title">
+          <small>{t(egg ? 'disc.egg' : 'disc.legendary')}</small>
+          <span class="legend-emoji">{gold.icon}</span>
+          <b>{gold.title}</b>
+        </div>
+      ) : null}
       <div class="cine-bar top" />
       <div class="cine-bar bottom">{c.sub ? <p class="cine-sub" key={c.sub}>{t(c.sub)}</p> : null}</div>
       {c.caption ? (
@@ -1977,6 +2007,32 @@ function Cinema({ actions }: { actions: Actions }) {
       <button class="btn small cine-skip" onClick={actions.skipCutscene}>
         {t('cs.skip')} ▶▶ <small>{t('cs.skipHint')}</small>
       </button>
+    </div>
+  );
+}
+
+/** The gold card after a secret discovery's cutscene. */
+function DiscoveryReveal({ actions }: { actions: Actions }) {
+  const id = legend.value;
+  const c = id ? cardFor(id, settings.value.lang) : null;
+  if (!id || !c) return null;
+  const egg = DISCOVERIES.find((d) => d.id === id)?.egg;
+  const found = DISCOVERIES.filter((d) => knowledge.value.includes(d.id)).length;
+  return (
+    <div class="legend-screen">
+      <div class="legend-card">
+        <div class="legend-shine" />
+        <small class="legend-kicker">✦ {t(egg ? 'disc.egg' : 'disc.legendary')} ✦</small>
+        <div class="legend-icon">{c.icon}</div>
+        <h2>{c.title}</h2>
+        <div class="legend-body">
+          <CardBody id={id} />
+        </div>
+        <p class="legend-count">{t('disc.count', { n: num(found), total: num(DISCOVERIES.length) })}</p>
+        <button class="btn primary" onClick={actions.closeDiscovery}>
+          {t('disc.continue')}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2029,6 +2085,7 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'briefing' && <Briefing actions={actions} />}
       {sc === 'paused' && !panel.value && <Paused actions={actions} />}
       {sc === 'complete' && <Complete actions={actions} />}
+      {sc === 'discovery' && <DiscoveryReveal actions={actions} />}
       {sc === 'playing' && terminal.value === 'life' && <Terminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'power' && <PowerTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'array' && <ArrayPanel actions={actions} />}

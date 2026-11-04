@@ -15,7 +15,7 @@ await page.evaluate(async () => { await window.__qa.play(); });
 await page.waitForTimeout(3000);
 
 async function measure(label, setup) {
-  if (setup) await page.evaluate(setup);
+  if (setup) await page.evaluate(setup, label);
   await page.waitForTimeout(1500);
   const r = await page.evaluate(async () => {
     const times = [];
@@ -45,5 +45,5 @@ if (!only || only === 'all') {
   await measure('low', () => { window.__qa.show('terrain', true); window.__qa.quality('low'); });
   await measure('high', () => window.__qa.quality('high'));
   await measure('medium again', () => window.__qa.quality('medium'));
-} else await measure(only);
+} else await measure(only, ['low', 'medium', 'high'].includes(only) ? (q) => window.__qa.quality(q) : undefined);
 await browser.close();

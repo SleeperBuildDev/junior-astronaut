@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 
-export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 'paused' | 'complete';
+export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 'paused' | 'complete' | 'discovery';
 
 export const screen = signal<Screen>('loading');
 export const loadProgress = signal(0);
@@ -64,4 +64,6 @@ export const holdProgress = signal<number | null>(null);
 export const waypoint = signal<{ x: number; y: number; onScreen: boolean; angle: number; dist: number | null; label: string } | null>(null);
 
 /** What the cutscene overlay shows: a subtitle key and an optional big location caption. */
-export const cinema = signal<{ sub: string | null; caption: string | null }>({ sub: null, caption: null });
+export const cinema = signal<{ sub: string | null; caption: string | null; gold?: boolean }>({ sub: null, caption: null });
+/** The secret discovery being revealed (its card id), for the gold title and the reveal screen. */
+export const legend = signal<string | null>(null);

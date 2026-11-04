@@ -60,6 +60,21 @@ Done and tested (git history has one commit per milestone):
   takes game hours; finished facilities change the numbers and appear in the world. Final report
   terminal ('final') with score and 1–3 stars; `actions.finishSettlement` ends the mission.
   Comms outage silences Mission Control (text-only on the backup antenna).
+- **Secret discoveries** (`src/game/discoveries.ts`, 2026-11-04): 22 hidden finds, 2–3 per mission
+  (`DISCOVERIES`: id = card id, mission, `egg` = Apollo tribute, `special` cutscene), placed by `SPOTS`
+  (fixed x/z, or computed: highest ridge, inside the crater by site C). Only the current mission's finds
+  show; a gold glint (within 140 m) and a scanner chirp (`sfx('anomaly')`, within 25 m) give them away.
+  E plays a "legendary" cutscene built per find (`shots()`: over-shoulder push-in → gold beam + motes +
+  title → visor close-up with a live cube-camera reflection → crane), specials: golf swing + ball flight,
+  hammer & feather slow-mo drop, lamp-lit ice glitter, impact flash, laser to Earth, eclipse ring, sun
+  peak, Earth zoom. Then screen `discovery` (gold card). Cards are normal Knowledge cards (EN `knowledge.ts`,
+  MY `cards-my.ts`), listed separately in the Knowledge Center ("??? Hidden in Mission N") and counted on
+  the complete screen. Narration `cs_d_<id>`. QA: `node qa/secrets.mjs [en|my] [ids|all] [quality]`,
+  hooks `discoveries()`, `discover(id)`, `closeDiscovery()`.
+- **Ground effects** (`src/world/effects.ts`): instanced boot prints every 0.7 m walked, rover track
+  marks + rooster-tail dust, ballistic dust on steps/landings (counts scale with quality). Your astronaut
+  (`src/world/astronaut.ts`, jointed code-built model with poses) appears in cutscenes; an invisible copy
+  follows you and casts your long shadow (Medium/High). QA: `node qa/groundfx.mjs [quality]`, hook `fx()`.
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
@@ -201,8 +216,8 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
   vsync off, so its fps counts CPU submissions and over-reports badly (it said 100+ while the GPU really did 30).
   Rocks 03/05/07 ship only one ~8k-triangle mesh: the scatter uses gltfpack-simplified `_big.glb`/`_small.glb`
   (made with `-si 0.15|0.05 -sa -noq -tr`). Medium = 60 fps after that fix (2.2M triangles).
-- Performance target: the dev PC has only an **Intel UHD 770 integrated GPU**. Current: Medium ≈ 95–110 fps,
-  High ≈ 70+, Low ≈ 200+ at 1600×900 (after Mission 3: Medium ≈ 100 fps, 386 draw calls). Keep draw calls/lights modest; floodlight SpotLights are skipped on Low.
+- Performance target: the dev PC has only an **Intel UHD 770 integrated GPU**. Honest (vsync) numbers 2026-11-04: Medium 60 fps
+  (16.7 ms), High median 60 with dips to 30 (p95 33 ms). `node qa/frames.mjs 1 <url> high` measures one preset. Keep draw calls/lights modest; floodlight SpotLights are skipped on Low.
 - The other chat's Vite dev server sometimes serves a stale module after many quick edits (a
   ReferenceError for a removed name): `touch` the changed files to force a fresh transform.
 - Event hooks: `onBuild`, `onRadEvent`, `onEmEvent` and `onSettleEvent` take several listeners (each
@@ -212,6 +227,11 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 - Terminals opened by a timer (alarms, reports) free the mouse through the `terminal` effect in main.ts.
 - Kokoro voices: Mission Control `am_michael`, narrator `af_heart`, crew `cr_cmdr_*` bf_emma,
   `cr_sci_*` am_adam, `cr_med_*` af_sarah (make_vo.py picks by key prefix).
+- **Shadow-only meshes**: three.js skips shadows for meshes that don't write depth, so the body shadow
+  uses `SHADOW_LAYER` (layer 1), enabled only on `sun.shadow.camera`. Hidden lights (`visible=false`) cost
+  nothing; lights at intensity 0 still add shader cost, so cutscene lights stay hidden when unused.
+- **Windows 10 can't draw Emoji 13+** (🪶 🫁 🫧 🪨 show as boxes): pick older emoji for card icons.
+- Git Bash `sed -i` turns CRLF files into LF: use Python (bytes + CRLF) on the CRLF files.
 - Ultracode may be on, but the owner asked to keep multi-agent work to big decisions + one small
   final-check workflow per mission (Burmese review on Sonnet + one bug reviewer).
 

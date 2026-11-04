@@ -35,7 +35,7 @@ import { resetCrew } from './game/crew';
 import { habitat, habitatDone, resetHabitat } from './game/habitat';
 import { capacityKWh, power, powerOnline, resetPower, setArrayHealth, sunYaw } from './game/power';
 import { missionDone, progress } from './game/save';
-import { cardPopup, clock, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
+import { cardPopup, clock, knowledge, legend, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { addCollider, createPhysics } from './player/physics';
 import { Player } from './player/player';
@@ -47,6 +47,9 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { heightAt, LAYOUT } from './world/heightfield';
 import { buildRocks } from './world/rocks';
 import { buildTrails } from './world/trails';
+import { Astronaut, SHADOW_LAYER } from './world/astronaut';
+import { buildGroundEffects } from './world/effects';
+import { buildDiscoveries } from './game/discoveries';
 import { buildSky, SUN_DIR, sunlight, sunPath } from './world/sky';
 import { buildTerrain, regolithMaterial } from './world/terrain';
 
@@ -187,7 +190,8 @@ async function boot() {
   // ---------- world ----------
   const tex = await loadTextures(renderer, (f) => (loadProgress.value = f * 0.6));
   const preset = PRESETS[settings.value.quality];
-  const terrain = buildTerrain(regolithMaterial(tex.regolith), preset.terrainSegments);
+  const terrainMat = regolithMaterial(tex.regolith);
+  const terrain = buildTerrain(terrainMat, preset.terrainSegments);
   scene.add(terrain.group);
   const sky = buildSky(tex.earthDay, tex.earthClouds);
   scene.add(sky.group);
@@ -205,6 +209,7 @@ async function boot() {
   sc.far = 600;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.06;
+  sun.shadow.camera.layers.enable(SHADOW_LAYER);
   scene.add(sun, sun.target);
   scene.add(new THREE.HemisphereLight(0x0a0c12, 0x55524c, 0.32));
   scene.environment = lunarEnvironment(renderer);
@@ -236,9 +241,21 @@ async function boot() {
   scene.add(await buildTrails());
   const rocks = await buildRocks(preset.terrainSegments > 260 ? 1600 : 900);
   scene.add(rocks.group);
+  // Boot prints, rover tracks and dust; your astronaut (cutscenes) and its shadow (play).
+  const fx = buildGroundEffects(settings.value.quality);
+  scene.add(fx.group);
+  const astronaut = new Astronaut();
+  astronaut.root.visible = false;
+  scene.add(astronaut.root);
+  const bodyShadow = new Astronaut({ shadowOnly: true });
+  bodyShadow.root.visible = false;
+  scene.add(bodyShadow.root);
+  const sunScale = { value: 1 };
+  const discoveries = buildDiscoveries({ scene, sky: sky.group, renderer, astronaut, fx, terrainMat, sunScale, quality: () => settings.value.quality });
+  scene.add(discoveries.group);
   loadProgress.value = 0.85;
 
-  const { RAPIER, world, terrainHandle } = await createPhysics(terrain.physics, [...outpost.colliders, ...rocks.colliders]);
+  const { RAPIER, world, terrainHandle } = await createPhysics(terrain.physics, [...outpost.colliders, ...rocks.colliders, ...discoveries.colliders]);
   // The rover: parked by the habitat until Mission 7, then drivable.
   const rover = new Rover(RAPIER, world, outpost.rover, terrainHandle);
   const roverPark = { pos: outpost.rover.position.clone(), yaw: outpost.rover.rotation.y };
@@ -252,7 +269,10 @@ async function boot() {
   const startYaw = Math.atan2(-(LAYOUT.base.x - startPos.x), -(LAYOUT.base.z - startPos.z));
   player = new Player(RAPIER, world, input, camera, startPos);
   player.yaw = startYaw;
-  player.onLand = (fall) => thud(fall);
+  player.onLand = (fall) => {
+    thud(fall);
+    fx.land(player!.feet, fall);
+  };
   player.onStep = (k) => sfx('step', k);
   player.onJump = () => sfx('jump');
   player.onBoundary = () => {
@@ -348,6 +368,9 @@ async function boot() {
 
   function resetMission() {
     for (const e of registry.values()) e.m.end?.();
+    fx.clear();
+    discoveries.cleanup();
+    legend.value = null;
     started = false;
     terminal.value = null;
     setupWorld(missionNumber.value);
@@ -396,8 +419,9 @@ async function boot() {
   // ---------- interaction ----------
   const ray = new THREE.Raycaster();
   ray.far = 3.4;
-  const targets = outpost.interactables.map((i) => i.object);
-  const byObject = new Map<THREE.Object3D, Interactable>(outpost.interactables.map((i) => [i.object, i]));
+  const allInteractables = [...outpost.interactables, ...discoveries.interactables];
+  const targets = allInteractables.map((i) => i.object);
+  const byObject = new Map<THREE.Object3D, Interactable>(allInteractables.map((i) => [i.object, i]));
   let focused: Interactable | null = null;
   let warningTimer = 0;
   const flash = (msg: string, secs = 3) => {
@@ -405,7 +429,27 @@ async function boot() {
     warningTimer = secs;
   };
 
+  /** A secret find: the legendary cutscene, then the gold card screen. */
+  function playDiscovery(id: string) {
+    legend.value = id;
+    const shots = discoveries.shots(id, player!.feet.clone());
+    playCut(shots, () => {
+      discoveries.cleanup();
+      camera.fov = settings.value.fov + (player!.sprinting ? 4 : 0);
+      camera.updateProjectionMatrix();
+      if (!knowledge.value.includes(id)) knowledge.value = [...knowledge.value, id];
+      screen.value = 'discovery';
+      sfx('unlock');
+    });
+  }
+  actions.closeDiscovery = () => {
+    legend.value = null;
+    void actions.resume();
+  };
+
   function labelFor(it: Interactable) {
+    const secret = discoveries.idOf(it.id);
+    if (secret) return knowledge.value.includes(secret) ? 'p.disc.again' : 'p.disc';
     const l = current().m.label(it.id);
     if (l) return l;
     if (it.id === 'o2') return suit.value.o2 > 98 ? 'p.o2full' : 'p.o2refill';
@@ -413,6 +457,8 @@ async function boot() {
   }
 
   function use(it: Interactable) {
+    const secret = discoveries.idOf(it.id);
+    if (secret) return playDiscovery(secret);
     if (it.id === 'rover') {
       enterRover();
       current().m.interact('rover');
@@ -519,6 +565,9 @@ async function boot() {
   timer.connect(document);
   screen.value = 'menu';
 
+  const lastFeet = new THREE.Vector3();
+  const printFeet = new THREE.Vector3();
+  let walkAcc = 0;
   renderer.setAnimationLoop((t) => {
     timer.update(t);
     const dt = Math.min(timer.getDelta(), 0.1);
@@ -528,8 +577,10 @@ async function boot() {
     if (screen.value === 'cutscene') cut.update(dt, camera);
     else if (player && rover.driving) {
       // Driving: the rover moves and steps the physics; E gets out. Paused or a panel: it waits.
-      if (inMission) rover.update(dt, input, playing);
-      else input.takeLook();
+      if (inMission) {
+        rover.update(dt, input, playing);
+        fx.roll(rover.obj.position, rover.yaw, rover.speed, dt);
+      } else input.takeLook();
       rover.applyCamera(camera);
       if (playing) {
         if (input.pressed('KeyE')) leaveRover();
@@ -633,13 +684,40 @@ async function boot() {
     updateGuide(t / 1000);
     // Sunlight, ground bounce and reflections all fade when the Sun goes below the horizon.
     const day = sunlight();
-    sun.intensity = 7.5 * day;
+    sun.intensity = 7.5 * day * sunScale.value;
     sun.visible = day > 0.002;
     hemi.intensity = 0.32 * (0.35 + 0.65 * day);
     scene.environmentIntensity = 0.55 * (0.2 + 0.8 * day);
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, 300);
     sun.target.position.copy(camera.position);
     sky.update(camera);
+    fx.update(dt);
+    // Secret finds of this mission: glints and the scanner chirp.
+    discoveries.update(dt, missionNumber.value, player && screen.value === 'playing' && !rover.driving ? player.feet : null, knowledge.value, suit.value.light, screen.value === 'cutscene');
+    // A boot print every 0.7 m walked (one real stride), alternating left and right.
+    if (player && screen.value === 'playing' && !rover.driving) {
+      const f = player.feet;
+      const moved = Math.hypot(f.x - printFeet.x, f.z - printFeet.z);
+      if (moved > 3) printFeet.copy(f); // teleported
+      else if (player.grounded) {
+        walkAcc += moved;
+        if (walkAcc >= 0.7) {
+          walkAcc = 0;
+          fx.step(f, player.yaw, Math.min(1, 0.45 + moved / dt / 8));
+        }
+      }
+      printFeet.copy(f);
+    }
+    // Your own body's long shadow on the ground (Medium and High).
+    const showBody = !!player && screen.value !== 'cutscene' && !rover.driving && settings.value.quality !== 'low';
+    bodyShadow.root.visible = showBody;
+    if (showBody) {
+      const f = player!.feet;
+      const sp = Math.hypot(f.x - lastFeet.x, f.z - lastFeet.z) / Math.max(dt, 1e-3);
+      lastFeet.copy(f);
+      bodyShadow.place(f, player!.yaw + Math.PI);
+      bodyShadow.update(dt, Math.min(sp, 6));
+    }
     const now = t / 1000;
     for (const b of outpost.blinkers) b.mesh.visible = (now + b.phase) % b.period < b.period * 0.5;
 
@@ -848,6 +926,19 @@ async function boot() {
           player!.teleport(feet, Math.atan2(-(p.x - x), -(p.z - z)));
           player!.pitch = Math.atan2(p.y - (feet.y + 1.62), dist);
         },
+        discoveries: () => discoveries.list(),
+        fx: () => fx.counts(),
+
+        /** Stand next to a secret find and press E on it. */
+        discover: (id: string) => {
+          const d = discoveries.list().find((x) => x.id === id)!;
+          const a = Math.atan2(LAYOUT.base.x - d.x, LAYOUT.base.z - d.z);
+          const x = d.x + Math.sin(a) * 2.2;
+          const z = d.z + Math.cos(a) * 2.2;
+          player!.teleport(new THREE.Vector3(x, heightAt(x, z), z), Math.atan2(-(d.x - x), -(d.z - z)));
+          playDiscovery(id);
+        },
+        closeDiscovery: () => actions.closeDiscovery?.(),
         power: () => ({ ...power.value, sunYaw: sunYaw() }),
         habitat: () => habitat.value,
         greenhouse: () => greenhouse.value,

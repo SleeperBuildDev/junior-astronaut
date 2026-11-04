@@ -16,7 +16,7 @@ export const CARDS: Record<string, Card> = {
   gravity: {
     id: 'gravity',
     title: 'Lunar gravity',
-    icon: '🪶',
+    icon: '🎈',
     body: [
       "Gravity on the Moon is 1.62 m/s², about one sixth of Earth's 9.81 m/s². If you weigh 36 kg on Earth, the Moon pulls on you like 6 kg.",
       'Your mass does not change, only your weight. A heavy suit is still hard to stop once it is moving, so astronauts learned to take slow, bouncy steps.',
@@ -93,7 +93,7 @@ export const CARDS: Record<string, Card> = {
   lifesupport: {
     id: 'lifesupport',
     title: 'Life support',
-    icon: '🫁',
+    icon: '💨',
     body: [
       'A life support system keeps the air, water and temperature inside a habitat safe. Without it, astronauts could survive only minutes on the Moon.',
       'Each astronaut uses roughly 0.8 kg of oxygen and several litres of water every day. Bringing all of that from Earth would be very expensive, so long missions make and recycle as much as they can.',
@@ -203,7 +203,7 @@ export const CARDS: Record<string, Card> = {
   habitat: {
     id: 'habitat',
     title: 'Why a pressurised home?',
-    icon: '🫧',
+    icon: '🏠',
     body: [
       'On the Moon there is almost no air pressure. Without a pressurised habitat or a spacesuit, a person would lose consciousness in about 15 seconds. A habitat keeps air pushing on the body, just as Earth’s atmosphere does.',
       'The ISS keeps its air at 101 kPa, like Earth at sea level. Before spacewalks, the Space Shuttle crew lowered the cabin to about 70 kPa with a little more oxygen, so their bodies adjusted faster to the lower pressure inside a spacesuit. Future Moon bases may do something similar.',
@@ -485,6 +485,249 @@ export const CARDS: Record<string, Card> = {
     ],
     inGame: 'Your 30 days are sped up and simplified. A real base would take many years to grow and would still need some supplies from Earth.',
     source: 'NASA Artemis program; NASA Moon to Mars architecture',
+  },
+  // ---------- secret discoveries (bonus cards) ----------
+  glass: {
+    id: 'glass',
+    title: 'Orange glass beads',
+    icon: '🔶',
+    body: [
+      'In 1972 Apollo 17 geologist Harrison Schmitt spotted orange soil at Shorty crater. Under a microscope it was made of tiny glass beads, smaller than grains of sand.',
+      'They formed about 3.6 billion years ago, when fountains of lava sprayed molten drops high above the Moon. The drops cooled into glass before they landed.',
+    ],
+    inGame: 'The real orange soil is near the Moon’s equator, far from the south pole. We placed a patch here so you could see it, and made the beads big enough to spot.',
+    source: 'NASA Apollo 17; Lunar Sample 74220',
+  },
+  freshcrater: {
+    id: 'freshcrater',
+    title: 'A brand-new crater',
+    icon: '✨',
+    body: [
+      'Small rocks from space hit the Moon all the time. A fresh crater looks bright because it digs up clean rock that sunlight has not darkened yet.',
+      'Over millions of years, the solar wind and tiny impacts slowly darken the surface. This is called space weathering. Bright rays around a crater mean it is young.',
+    ],
+    inGame: 'NASA’s Lunar Reconnaissance Orbiter has spotted hundreds of new craters that appeared after 2009. This one is about 3 m wide.',
+    source: 'NASA LRO new-crater survey (Speyerer et al., 2016)',
+  },
+  golf: {
+    id: 'golf',
+    title: 'The Moon golf shot',
+    icon: '⛳',
+    body: [
+      'In 1971 Apollo 14 commander Alan Shepard hit two golf balls on the Moon. His club was a golf club head fixed to a tool handle, and his stiff suit let him swing with only one hand.',
+      'With one sixth of Earth’s gravity and no air to slow it down, a ball flies higher and farther, and it can never curve: there is no air to make it swerve. Shepard’s second ball went about 40 yards.',
+    ],
+    inGame: 'This is a tribute ball. Shepard’s real golf balls are still at Fra Mauro, near the Moon’s equator. Your swing goes a lot farther than his.',
+    source: 'NASA Apollo 14 Lunar Surface Journal',
+  },
+  meteorite: {
+    id: 'meteorite',
+    title: 'A rock from somewhere else',
+    icon: '☄️',
+    body: [
+      'Most rocks here are Moon rocks, but some fell from space. Apollo 12 soil held a piece of a meteorite, and scientists have found meteorite bits in many Moon samples.',
+      'With no air, nothing burns up on the way down: space rocks hit at full speed. Most melt or vaporise, but slow ones can leave pieces. Iron meteorites never rust here, because there is no air or water.',
+    ],
+    inGame: 'We made this one a big iron chunk so you can spot it. Real meteorite pieces on the Moon are usually tiny.',
+    source: 'NASA Lunar Sample Compendium; Apollo 12 “Bench Crater” meteorite',
+  },
+  thermalcrack: {
+    id: 'thermalcrack',
+    title: 'The rock the Sun broke',
+    icon: '🌡️',
+    body: [
+      'A day on the Moon lasts about two weeks, and so does the night. Near the equator the ground swings from about 120 °C in the day to −130 °C at night.',
+      'Rocks grow a tiny bit in the heat and shrink in the cold. Over millions of swings, small cracks spread until a boulder splits apart. Scientists call this thermal fatigue.',
+    ],
+    inGame: 'At the south pole the swings are smaller, because the Sun stays low. We split this boulder cleanly so the cracks are easy to see.',
+    source: 'Molaro et al. 2017 (thermal fatigue); NASA LRO Diviner',
+  },
+  eternallight: {
+    id: 'eternallight',
+    title: 'Peaks of almost eternal light',
+    icon: '☀️',
+    body: [
+      'At the poles the Sun skims along the horizon. Some high ridges near the south pole stay in sunlight for most of the year, while crater floors nearby stay dark.',
+      'These peaks are prime spots for solar panels and future bases: almost non-stop power, with ice in the dark craters just next door.',
+    ],
+    inGame: 'No real peak is lit 100% of the time; the best get sunlight about 90% of the year. In the game this ridge just stays in the Sun.',
+    source: 'NASA LRO LOLA illumination maps',
+  },
+  earthshine: {
+    id: 'earthshine',
+    title: 'Earthshine',
+    icon: '🌏',
+    body: [
+      'Earth reflects sunlight onto the Moon. When the Sun is down, the ground facing Earth glows a faint blue-grey. Leonardo da Vinci worked this out about 500 years ago.',
+      'A full Earth seen from the Moon is about 40 times brighter than a full Moon seen from Earth. On the long lunar night it is bright enough to walk by.',
+    ],
+    inGame: 'Earthshine is hard to see while the Sun is up. You can see it best during the dark hours in Mission 3.',
+    source: 'NASA Earthshine; Leonardo da Vinci, Codex Leicester',
+  },
+  hammerfeather: {
+    id: 'hammerfeather',
+    title: 'Hammer and feather',
+    icon: '🔨',
+    body: [
+      'In 1971 Apollo 15 commander David Scott dropped a hammer and a falcon feather at the same moment, on live TV. They hit the ground together.',
+      'Galileo predicted it: without air, everything falls at the same rate, whatever it weighs. On Earth the air slows the feather down, so it drifts.',
+    ],
+    inGame: 'The real hammer and feather were left at Hadley Rille. The feather was a nod to the mission’s lunar module, named Falcon. The cutscene shows the fall in slow motion.',
+    source: 'NASA Apollo 15 Lunar Surface Journal',
+  },
+  scarp: {
+    id: 'scarp',
+    title: 'The shrinking Moon',
+    icon: '📉',
+    body: [
+      'As the inside of the Moon cools, it shrinks a little, like a grape drying into a raisin. The crust cracks and one side is pushed up over the other, making low cliffs called lobate scarps.',
+      'NASA’s LRO has found thousands of them. Some look young, and moonquake records suggest the Moon may still be shrinking today.',
+    ],
+    inGame: 'Real scarps can be kilometres long and tens of metres high. This one is short so it fits on our map.',
+    source: 'NASA LRO; Watters et al. 2019 (Nature Geoscience)',
+  },
+  moonquake: {
+    id: 'moonquake',
+    title: 'Moonquakes',
+    icon: '📈',
+    body: [
+      'Apollo astronauts left seismometers that recorded moonquakes from 1969 to 1977. Some came from deep inside, some from meteorite hits, and some were strong quakes near the surface.',
+      'The Moon is dry and stiff, so it rings like a bell. When an old spacecraft stage was crashed into it on purpose, the shaking went on for nearly an hour. Bases will need to be built for that.',
+    ],
+    inGame: 'This old station is made up. The real Apollo seismometers were switched off in 1977.',
+    source: 'NASA Apollo Passive Seismic Experiment',
+  },
+  familyphoto: {
+    id: 'familyphoto',
+    title: 'A photo left on the Moon',
+    icon: '📷',
+    body: [
+      'In 1972 Apollo 16 astronaut Charlie Duke left a family photo on the Moon. His family wrote on the back that they were the family of an astronaut from planet Earth.',
+      'With no wind or rain, things on the Moon change very slowly. But sunlight is fierce up here, and Duke thinks his photo has faded to white by now.',
+    ],
+    inGame: 'This photo is pretend: the junior astronaut’s own family. Duke’s real photo lies in the Descartes Highlands.',
+    source: 'NASA Apollo 16; Charlie Duke interviews',
+  },
+  vesicles: {
+    id: 'vesicles',
+    title: 'Rock full of bubbles',
+    icon: '🌋',
+    body: [
+      'Some Moon rocks are full of small round holes called vesicles. They are gas bubbles that got trapped when lava cooled and hardened into basalt.',
+      'The dark patches you see on the Moon from Earth, the maria, are huge plains of basalt lava from 3 to 4 billion years ago. Apollo 15 brought home a famous bubbly basalt.',
+    ],
+    inGame: 'The south pole is mostly pale highland rock, so basalt like this is rare here. Think of it as thrown here by a faraway impact.',
+    source: 'NASA Lunar Sample 15016',
+  },
+  solarwind: {
+    id: 'solarwind',
+    title: 'Moon soil remembers the Sun',
+    icon: '🌞',
+    body: [
+      'The Sun blows out a stream of particles called the solar wind. On Earth our air and magnetic field block it, but on the Moon it hits the ground directly.',
+      'For billions of years the soil has caught hydrogen and helium from the Sun. Each layer of soil is like a page in a diary of how the Sun has changed.',
+    ],
+    inGame: 'This is a drive tube, the kind Apollo crews hammered into the ground. One Apollo 17 tube stayed sealed for 50 years and was opened in 2022.',
+    source: 'NASA ANGSA programme; Apollo drive tubes',
+  },
+  plush: {
+    id: 'plush',
+    title: 'The zero-g indicator',
+    icon: '🧸',
+    body: [
+      'Many crews bring a small soft toy. When it starts to float on the way up, everyone knows they have reached weightlessness. It is called a zero-g indicator.',
+      'On Artemis I in 2022, a Snoopy plush floated inside the Orion capsule. On the Moon a toy sits down again, because the Moon’s gravity still pulls on it.',
+    ],
+    inGame: 'This little bear in a space suit belongs to one of your crewmates. Someone must have left it here on a sensor walk.',
+    source: 'NASA Artemis I',
+  },
+  skylight: {
+    id: 'skylight',
+    title: 'A hole into a lava tube',
+    icon: '🕳️',
+    body: [
+      'NASA’s LRO has found more than 200 pits on the Moon. Some may lead into lava tubes: long tunnels left behind when rivers of lava drained away underground.',
+      'A lava tube could shield a base from radiation and small meteorites. In the shade of one pit that LRO studied, the temperature stays near 17 °C all the time.',
+    ],
+    inGame: 'Real pits are about 50 to 100 m wide. You cannot go down into this one: there is no safe way in.',
+    source: 'NASA LRO; Horvath et al. 2022 (Geophysical Research Letters)',
+  },
+  radmeasure: {
+    id: 'radmeasure',
+    title: 'Who measured Moon radiation?',
+    icon: '☢️',
+    body: [
+      'In 2019 China’s Chang’e 4 lander carried a German-built detector to the far side of the Moon. It measured about 1.37 millisieverts of radiation per day on the surface.',
+      'That is about 200 times more than on Earth’s surface, and it is the number this game uses. It helps planners work out how much shielding a base needs.',
+    ],
+    inGame: 'This detector box is made up. The real one, called LND, is on the far side in Von Kármán crater.',
+    source: 'Zhang et al. 2020 (Science Advances)',
+  },
+  icefrost: {
+    id: 'icefrost',
+    title: 'Ice you can see',
+    icon: '💎',
+    body: [
+      'In 2018 scientists confirmed water ice right on the surface, inside the coldest shadowed craters near both poles. NASA’s M3 instrument on India’s Chandrayaan-1 spotted it.',
+      'The ice lies in patches mixed with dust. One day it could give a base drinking water, oxygen to breathe, and hydrogen for rocket fuel.',
+    ],
+    inGame: 'Real surface frost is too thin to sparkle like this, and those craters sit in total darkness at about −240 °C. We made it glitter in your lamp so you can find it.',
+    source: 'Li et al. 2018 (PNAS); NASA Moon Mineralogy Mapper',
+  },
+  surveyor: {
+    id: 'surveyor',
+    title: 'The robot that waited',
+    icon: '🤖',
+    body: [
+      'In 1967 the robot lander Surveyor 3 touched down on the Moon. Two and a half years later, the Apollo 12 astronauts landed within walking distance and went to visit it.',
+      'They took its TV camera and other parts home. Scientists studied how 31 months on the Moon had changed its metal, glass and paint.',
+    ],
+    inGame: 'This old lander is a made-up robot in the same style. Surveyor 3 is still in the Ocean of Storms.',
+    source: 'NASA Apollo 12; Surveyor 3',
+  },
+  impactflash: {
+    id: 'impactflash',
+    title: 'Impact flash!',
+    icon: '💥',
+    body: [
+      'Sometimes a space rock hits the Moon so fast that it makes a flash of light that telescopes on Earth can see. NASA has recorded hundreds of these flashes.',
+      'In March 2013 a boulder about 40 cm across hit at around 90,000 km/h. It flashed as bright as a star and blasted a crater 18 m wide.',
+    ],
+    inGame: 'Real impacts this close to a base would be very rare. You would not hear it either: with no air, you only feel a faint rumble through the ground.',
+    source: 'NASA Meteoroid Environment Office; LRO',
+  },
+  dustglow: {
+    id: 'dustglow',
+    title: 'The horizon glow mystery',
+    icon: '🌅',
+    body: [
+      'After sunset, robot Surveyor landers photographed a faint glow along the Moon’s horizon. Apollo astronauts in orbit sketched strange light streamers too.',
+      'One idea: sunlight gives dust grains an electric charge until some lift off the ground. NASA’s LADEE spacecraft went to look in 2013 and found much less floating dust than expected. The mystery is still open.',
+    ],
+    inGame: 'This detector is made up. The game does not show the glow, because nobody is sure how it really looks.',
+    source: 'NASA Surveyor 7; LADEE mission',
+  },
+  retroreflector: {
+    id: 'retroreflector',
+    title: 'The mirror on the Moon',
+    icon: '🎯',
+    body: [
+      'Apollo 11, 14 and 15 left mirrors called retroreflectors. Observatories on Earth still fire lasers at them and time how long the light takes to bounce back.',
+      'The timing shows that the Moon is moving away from Earth by about 3.8 cm every year, about as fast as your fingernails grow.',
+    ],
+    inGame: 'Real laser beams are invisible in space and spread to a few kilometres wide by the time they reach the Moon. We drew a green beam so you can see it.',
+    source: 'NASA Lunar Laser Ranging',
+  },
+  eclipse: {
+    id: 'eclipse',
+    title: 'When Earth hides the Sun',
+    icon: '🔴',
+    body: [
+      'When people on Earth see a lunar eclipse, someone on the Moon would see Earth slide in front of the Sun.',
+      'Earth becomes a dark disc with a glowing red ring: the light of every sunrise and sunset on Earth at the same moment. That red light is why the Moon turns red in an eclipse. Surveyor 3 photographed it in 1967.',
+    ],
+    inGame: 'The cutscene jumps ahead to the next eclipse. A real one lasts a few hours.',
+    source: 'NASA Surveyor 3 (1967)',
   },
 };
 
