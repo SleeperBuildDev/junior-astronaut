@@ -6,3 +6,6 @@ qa/*.log
 
 # Music video working files (song, renders, fonts, lyrics) stay local
 /mtv/
+
+# Offline USB copy (built by tools/usb, see README)
+/release/

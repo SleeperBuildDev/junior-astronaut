@@ -59,7 +59,15 @@ High adds boot prints, more dust and a sharper visor reflection, and dips below 
 All free and open-source: three.js, postprocessing, Rapier physics, Preact, Vite and TypeScript.
 Models were made with Blender and compressed with gltfpack. Voices were made with Kokoro TTS.
 Rock models and textures are from Poly Haven (CC0). The Earth image is NASA's Blue Marble.
-No NASA logos or insignia are used. The full credits are in the game's Credits screen.
+No NASA logos or insignia are used. The game is an educational project, not affiliated with or
+endorsed by NASA. (The in-game Credits screen was removed at the owner's request; this section is the credits.)
+
+## Offline copy (USB)
+
+`npm run build`, then copy `dist/` to `release/Junior Astronaut/game/` next to the files in `tools/usb/`
+(`Play Junior Astronaut.bat`, `server.ps1`, `README.txt`). On another Windows PC, double-clicking the .bat
+starts a tiny local web server (Windows' built-in HttpListener, ports 8765+) and opens the game: no
+internet or installs. `release/` is git-ignored.
 
 ## Development
 

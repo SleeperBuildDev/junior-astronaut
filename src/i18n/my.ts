@@ -22,7 +22,6 @@ export const my: Record<string, string> = {
   'menu.controls': 'ထိန်းချုပ်ခလုတ်များ',
   'menu.settings': 'ဆက်တင်များ',
   'menu.knowledge': 'အသိပညာစင်တာ',
-  'menu.credits': 'ကျေးဇူးတင်လွှာ',
   'menu.note': 'ကွန်ပျူတာ၏ ကီးဘုတ်နှင့် မောက်စ်ဖြင့် Chrome သို့မဟုတ် Edge တွင် ကစားရန် အကောင်းဆုံးဖြစ်သည်။',
   loading: 'ဆင်းသက်ရာနေရာကို ပြင်ဆင်နေသည်…',
   phone: 'ဤမစ်ရှင်အတွက် ကီးဘုတ်နှင့် မောက်စ်ပါသော ကွန်ပျူတာ လိုအပ်ပါသည်။ ဤစာမျက်နှာကို PC သို့မဟုတ် လက်ပ်တော့ပ်တွင် ဖွင့်ပါ။',
@@ -55,7 +54,6 @@ export const my: Record<string, string> = {
   'panel.settings': 'ဆက်တင်များ',
   'panel.controls': 'ထိန်းချုပ်ခလုတ်များ',
   'panel.knowledge': 'အသိပညာစင်တာ',
-  'panel.credits': 'ကျေးဇူးတင်လွှာနှင့် ဒေတာရင်းမြစ်များ',
 
   'key.mouse': 'မောက်စ်',
   'ctrl.walk': 'လမ်းလျှောက်ရန်',
@@ -81,13 +79,6 @@ export const my: Record<string, string> = {
   'set.q.high': 'မြင့်',
   'set.qualityHint': 'လက်ပ်တော့ပ် အဟောင်းများတွင် "နိမ့်" ကို ရွေးပါ။ မြေပြင် အသေးစိတ်သည် ဂိမ်းကို ပြန်ဖွင့်မှသာ ပြောင်းပါမည်။',
   'set.fullscreen': 'မျက်နှာပြင်အပြည့် ဖွင့်/ပိတ်',
-
-  'credits.disclaimer': 'သည် ပညာရေးဆိုင်ရာ ဂိမ်းတစ်ခု ဖြစ်သည်။ NASA နှင့် ဆက်စပ်ခြင်း သို့မဟုတ် NASA ၏ ထောက်ခံချက် ရရှိထားခြင်း မရှိပါ။',
-  'credits.1': 'လမျက်နှာပြင် တက်စ်ချာများနှင့် ကျောက်တုံး စကင်ဒေတာများ- Poly Haven "Moon" စုစည်းမှု (CC0)',
-  'credits.2': 'ကမ္ဘာ့ပုံများ- NASA Visible Earth, Blue Marble (NASA Goddard အာကာသပျံသန်းရေးစင်တာ)',
-  'credits.3': 'မစ်ရှင်ထိန်းချုပ်ရေး၏ အသံ- Kokoro-82M စာမှ အသံပြောင်းစနစ် (Apache-2.0)',
-  'credits.4': 'ဖောင့်များ- Atkinson Hyperlegible Next, B612 Mono, Orbitron, Noto Sans Myanmar (SIL Open Font License)',
-  'credits.5': 'အင်ဂျင်- three.js, Rapier physics, postprocessing, Preact (MIT/Apache/Zlib)',
 
   'kc.locked': 'သော့ခတ်ထားသည်',
   'kc.empty': 'သိပ္ပံအချက်အလက်များ ဖွင့်ရန် စူးစမ်းပြီး ရည်မှန်းချက်များကို ပြီးမြောက်အောင် လုပ်ပါ။',

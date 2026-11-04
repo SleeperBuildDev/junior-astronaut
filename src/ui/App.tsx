@@ -1780,21 +1780,6 @@ function SettingsPanel({ actions }: { actions: Actions }) {
   );
 }
 
-function Credits() {
-  return (
-    <div class="credits">
-      <p>
-        <b>Junior Astronaut: Lunar Survival Mission</b> {t('credits.disclaimer')}
-      </p>
-      <ul>
-        {[1, 2, 3, 4, 5].map((i) => (
-          <li>{t('credits.' + i)}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function MissionSelect({ actions }: { actions: Actions }) {
   const reached = progress.value.reached;
   return (
@@ -1829,7 +1814,6 @@ function Panel({ actions }: { actions: Actions }) {
         {p === 'settings' && <SettingsPanel actions={actions} />}
         {p === 'controls' && <ControlsCard />}
         {p === 'knowledge' && <KnowledgeCenter />}
-        {p === 'credits' && <Credits />}
         {p === 'missions' && <MissionSelect actions={actions} />}
         {p === 'crew' && <CrewPanel />}
         {p === 'colony' && <SettlementPanel />}
@@ -1885,9 +1869,6 @@ function Menu({ actions }: { actions: Actions }) {
           </button>
           <button class="btn" onClick={() => (panel.value = 'knowledge')}>
             {t('menu.knowledge')}
-          </button>
-          <button class="btn" onClick={() => (panel.value = 'credits')}>
-            {t('menu.credits')}
           </button>
         </div>
         <p class="note">{t('menu.note')}</p>

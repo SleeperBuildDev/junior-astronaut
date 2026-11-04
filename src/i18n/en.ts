@@ -21,7 +21,6 @@ export const en: Record<string, string> = {
   'menu.controls': 'Controls',
   'menu.settings': 'Settings',
   'menu.knowledge': 'Knowledge Center',
-  'menu.credits': 'Credits',
   'menu.note': 'Best with a keyboard and mouse on a computer, in Chrome or Edge.',
   loading: 'Preparing the landing site…',
   phone: 'This mission needs a computer with a keyboard and mouse. Please open this page on a PC or laptop.',
@@ -54,7 +53,6 @@ export const en: Record<string, string> = {
   'panel.settings': 'Settings',
   'panel.controls': 'Controls',
   'panel.knowledge': 'Knowledge Center',
-  'panel.credits': 'Credits & data sources',
 
   'key.mouse': 'Mouse',
   'ctrl.walk': 'Walk',
@@ -80,13 +78,6 @@ export const en: Record<string, string> = {
   'set.q.high': 'High',
   'set.qualityHint': 'Use Low on older laptops. Terrain detail changes after a restart.',
   'set.fullscreen': 'Toggle fullscreen',
-
-  'credits.disclaimer': 'is an educational game. It is not affiliated with or endorsed by NASA.',
-  'credits.1': 'Moon surface textures and rock scans: Poly Haven "Moon" collection (CC0)',
-  'credits.2': 'Earth images: NASA Visible Earth, Blue Marble (NASA Goddard Space Flight Center)',
-  'credits.3': 'Mission Control voice: Kokoro-82M text-to-speech (Apache-2.0)',
-  'credits.4': 'Fonts: Atkinson Hyperlegible Next, B612 Mono, Orbitron, Noto Sans Myanmar (SIL Open Font License)',
-  'credits.5': 'Engine: three.js, Rapier physics, postprocessing, Preact (MIT/Apache/Zlib)',
 
   'kc.locked': 'Locked',
   'kc.empty': 'Explore and complete objectives to unlock science facts.',
