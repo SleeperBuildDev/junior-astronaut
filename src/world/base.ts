@@ -472,8 +472,9 @@ function o2Station() {
   // refill panel the astronaut uses
   const panel = mesh(new RoundedBoxGeometry(0.7, 1.0, 0.18, 2, 0.04), mats.white, g, [2.45, 1.2, 0]);
   panel.name = 'o2-panel';
-  mesh(new THREE.PlaneGeometry(0.45, 0.3), mats.cyan, g, [2.81, 1.35, 0], [0, Math.PI / 2, 0]);
-  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10), mats.green, g, [2.85, 1.0, 0.18], [0, 0, Math.PI / 2]);
+  // Screen and refill valve on the front (+Z), the side you walk up to from the lander.
+  mesh(new THREE.PlaneGeometry(0.45, 0.3), mats.cyan, g, [2.45, 1.38, 0.095]).castShadow = false;
+  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10), mats.green, g, [2.6, 1.0, 0.18], [Math.PI / 2, 0, 0]);
   tube([new THREE.Vector3(2.3, 1.0, -0.1), new THREE.Vector3(2.0, 0.7, -0.4), new THREE.Vector3(1.4, 1.0, -0.5)], 0.04, mats.rubber, g);
   return { group: g, panel };
 }
@@ -679,7 +680,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
   const pwTerm = mesh(new RoundedBoxGeometry(0.1, 0.55, 0.8, 2, 0.03), mats.dark, pduFrame, [-2.2, 1.42, 0.55], [0, 0, -0.5]);
   const pwScreen = mesh(new THREE.PlaneGeometry(0.66, 0.42), mats.cyan, pduFrame, [-2.26, 1.45, 0.55]);
   pwScreen.rotation.set(0, -Math.PI / 2, 0);
-  pwScreen.rotateX(0.5);
+  pwScreen.rotateX(-0.5);
   pwScreen.castShadow = false;
   interactables.push({ id: 'pw-terminal', object: pwTerm, label: () => 'p.pwTerminal' });
   colliders.push({ kind: 'cylinder', center: local(-2.15, 0.7, 0.55), halfHeight: 0.7, radius: 0.25 });
@@ -896,7 +897,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
   // Habitat terminal beside the tunnel, and the construction terminal at the pad's corner
   const terminalPost = (x: number, z: number, id: string, label: string) => {
     strut(new THREE.Vector3(x, by, z), new THREE.Vector3(x, by + 1.2, z), 0.06, mats.alu, group);
-    const t = mesh(new RoundedBoxGeometry(0.1, 0.55, 0.8, 2, 0.03), mats.dark, group, [x - 0.05, by + 1.42, z], [0, 0, 0.5]);
+    const t = mesh(new RoundedBoxGeometry(0.1, 0.55, 0.8, 2, 0.03), mats.dark, group, [x - 0.05, by + 1.42, z], [0, 0, -0.5]);
     const scr = mesh(new THREE.PlaneGeometry(0.66, 0.42), mats.cyan, group, [x - 0.11, by + 1.45, z]);
     scr.rotation.set(0, -Math.PI / 2, 0);
     scr.rotateX(-0.5);
@@ -994,9 +995,9 @@ export function buildOutpost(models: OutpostModels): Outpost {
   strut(new THREE.Vector3(monX, monY, monZ), new THREE.Vector3(monX, monY + 2.4, monZ), 0.05, mats.alu, group);
   mesh(new THREE.SphereGeometry(0.22, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), mats.white, group, [monX, monY + 2.45, monZ]);
   mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.12, 20), mats.dark, group, [monX, monY + 2.4, monZ]);
-  const monBox = mesh(new RoundedBoxGeometry(0.62, 0.5, 0.3, 2, 0.04), mats.white, group, [monX, monY + 1.3, monZ]);
+  const monBox = mesh(new RoundedBoxGeometry(0.3, 0.5, 0.62, 2, 0.04), mats.white, group, [monX, monY + 1.3, monZ]);
   mesh(new THREE.PlaneGeometry(0.46, 0.3), mats.amber, group, [monX + 0.16, monY + 1.32, monZ], [0, Math.PI / 2, 0]).castShadow = false;
-  mesh(new THREE.BoxGeometry(0.52, 0.06, 0.06), mats.hazard, group, [monX, monY + 1.6, monZ]);
+  mesh(new THREE.BoxGeometry(0.06, 0.06, 0.52), mats.hazard, group, [monX, monY + 1.6, monZ]);
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2 + 0.4;
     strut(new THREE.Vector3(monX, monY + 0.9, monZ), new THREE.Vector3(monX + Math.cos(a) * 0.7, monY + 0.02, monZ + Math.sin(a) * 0.7), 0.025, mats.alu, group);
