@@ -1,6 +1,6 @@
 // HAB-1: the walk in through the airlock (hatch, chamber, pressure, inner door), the inside and
 // its stations, the walk back out, and the rover's get-in / get-out moves.
-// Saves qa/hab_*.png. Usage: node qa/habitat.mjs [en|my] [quality]
+// Saves qa/hab_*.png. Usage: node qa/habitat.mjs [en|my] [quality] [url]
 import { chromium } from 'playwright-core';
 
 const lang = process.argv[2] ?? 'en';
@@ -11,7 +11,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 await page.addInitScript((l) => localStorage.setItem('junior-astronaut.settings', JSON.stringify({ lang: l })), lang);
-await page.goto('http://localhost:5173/?qa=1');
+await page.goto(`${process.argv[4] ?? 'http://localhost:5173/'}?qa=1`);
 await page.waitForFunction(() => window.__qa?.ready, null, { timeout: 90000 });
 await page.evaluate((q) => window.__qa.quality(q), quality);
 const q = (fn, arg) => page.evaluate(fn, arg);

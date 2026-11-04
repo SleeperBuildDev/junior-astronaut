@@ -22,6 +22,10 @@ CONTROLS
   K - Knowledge Center     C - crew panel     T - settlement panel (Mission 9)     Esc - pause
   Enter - close knowledge cards
 
+  From Mission 2 you can walk into the habitat (HAB-1) through the airlock:
+  inside, your suit oxygen refills and there are stations to use.
+  Space skips the airlock walk.
+
   Settings -> Graphics: choose Low / Medium / High for the computer's speed.
   Settings -> Language: English or Burmese.
 
