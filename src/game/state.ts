@@ -44,7 +44,7 @@ export function unlock(id: string) {
 }
 
 /** The machine screen open on top of the game, if any (the game keeps running behind it). */
-export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab' | 'gh' | 'rad' | 'shelter' | 'notes' | 'lab' | 'alert' | 'diag' | 'aar' | 'final'>(null);
+export const terminal = signal<null | 'life' | 'power' | 'array' | 'build' | 'hab' | 'gh' | 'rad' | 'shelter' | 'notes' | 'lab' | 'alert' | 'diag' | 'aar' | 'final' | 'hab1'>(null);
 /** Rover dashboard (shown while driving). */
 export const drive = signal({ driving: false, speed: 0, battery: 100 });
 
@@ -67,3 +67,11 @@ export const waypoint = signal<{ x: number; y: number; onScreen: boolean; angle:
 export const cinema = signal<{ sub: string | null; caption: string | null; gold?: boolean }>({ sub: null, caption: null });
 /** The secret discovery being revealed (its card id), for the gold title and the reveal screen. */
 export const legend = signal<string | null>(null);
+/** You are inside HAB-1 (walked in through the airlock). */
+export const habInside = signal(false);
+/** Airlock pressure readout while a cycle runs (kPa), or null. */
+export const airlockKpa = signal<number | null>(null);
+/** Black screen fade, 0..1 (resting in the sleep station). */
+export const fade = signal(0);
+/** HAB-1 lighting: bright day, warm evening or a dim red night light. */
+export const habLights = signal<'day' | 'evening' | 'night'>('day');

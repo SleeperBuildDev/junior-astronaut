@@ -45,8 +45,8 @@ console.log('rover:', JSON.stringify(await q(() => window.__qa.rover())), 'done'
 await q(() => window.__qa.roverTo(152, -188, 2.6));
 await wait(1500);
 await shot('2_near_crater');
-await q(() => window.__qa.key('KeyE', 120)); // get out
-await wait(800);
+await q(() => window.__qa.key('KeyE', 120)); // get out (the climb-out move takes about a second)
+await wait(1600);
 console.log('out of rover:', !(await q(() => window.__qa.rover().driving)));
 
 // Study each site

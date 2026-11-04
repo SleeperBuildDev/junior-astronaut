@@ -83,6 +83,19 @@ Done and tested (git history has one commit per milestone):
   after the m9 ending cutscene, screen `mtv` (`MusicVideo` in App.tsx), then the complete screen, which has a replay
   button. Skip button / Enter / Space / Esc (ignored for 1 s and on key repeat); game audio is suspended (`muteGame`)
   and the render loop idles meanwhile. QA: `node qa/musicvideo.mjs [url]`, hooks `musicVideo()`, `endMusicVideo()`.
+- **HAB-1 interior + smooth moves** (2026-11-04): from Mission 2 the airlock leads into HAB-1 (unless the mission
+  claims it: Mission 1's ending, the M6/M9 storm shelter via `m.label('airlock')`). `src/player/moves.ts` (`Moves`:
+  eased first-person camera steps, Space skips) plays the walk-in (hatch swings open on its hinge, step in, look back as
+  it shuts, pressurise 0→101 kPa with the `airlockKpa` HUD, inner door slides, walk in) and the reverse, and the rover
+  get-in/get-out (1.1 s, not skippable). `src/world/interior.ts` builds the room inside the real module: lining with
+  porthole holes cut in its shader, floor, bulkheads, airlock inner door, shell colliders (replace the old solid box),
+  lights (hidden unless inside; precompiled at load), stations: suit port (O₂+battery full, card `plss`), galley (+15
+  health, `foodsystem`), exercise bike (`exercise`), Earth porthole (zoom on Earth, `earth`), sleep stations (fade, health
+  100, `sleep`), console terminal `hab1` (cabin/base readings + `habLights` day/evening/night). Inside (`habInside`), suit
+  O₂ refills 0.6 %/s once the cabin air is breathable (`habAirOk`: Mission ≥ 3 or habO2 safe), dose ×0.3, the guide points
+  at the exit. First entry unlocks the `airlock` card. `hollowHab()` in base.ts strips the hab GLB's internal faces (it is
+  built from closed cylinders + domes) and makes it single-sided. QA: `node qa/habitat.mjs [en|my] [quality]`, hooks
+  `habEnter()`, `habExit()`, `habUse(id)`, `hab()`, `skipMove()`, `pick()` (what is under the crosshair).
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
@@ -169,6 +182,8 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 | `src/game/settlement.ts` | Mission 9: 30-day resource model (rates per game day), construction timing, crew health, score |
 | `src/game/emergency.ts` | Mission 8 emergencies: `EMERGENCIES` data, phases alert→diagnose→repair→recover→report, cabin kPa/temp/O₂ reserve, `detector` signal |
 | `src/player/rover.ts` | Drivable rover (see Mission 7) |
+| `src/player/moves.ts` | `Moves`: scripted first-person camera moves (rover seat, airlock, interior stations) |
+| `src/world/interior.ts` | HAB-1's interior, airlock inner door, shell colliders, stations, lights |
 | `src/game/power.ts` | Power simulation: towers (deploy/aim/track), bus, battery (100 kWh), loads, `confirmPlan`, `arrayPanel` |
 | `src/game/lifesupport.ts` | Life-support simulation + terminal actions (`life` signal, `terminalOpen`) |
 | `src/game/knowledge.ts` | Knowledge cards (English) + `cardFor(id, lang)` |
@@ -240,6 +255,9 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
   nothing; lights at intensity 0 still add shader cost, so cutscene lights stay hidden when unused.
 - **Windows 10 can't draw Emoji 13+** (🪶 🫁 🫧 🪨 show as boxes): pick older emoji for card icons.
 - Git Bash `sed -i` turns CRLF files into LF: use Python (bytes + CRLF) on the CRLF files.
+- **Blender GLBs are solid inside and double-sided**: closed cylinders leave discs inside modules. To walk into one,
+  strip the inner triangles and set materials FrontSide (`hollowHab`). Raycasts hit hidden objects: filter with `shown()`.
+- `camera.matrixWorld` can be stale outside the render: call `camera.updateMatrixWorld()` before a raycast from a hook.
 - Ultracode may be on, but the owner asked to keep multi-agent work to big decisions + one small
   final-check workflow per mission (Burmese review on Sonnet + one bug reviewer).
 

@@ -325,7 +325,9 @@ export type Sfx =
   | 'inflate'
   | 'geiger'
   | 'klaxon'
-  | 'tick';
+  | 'tick'
+  | 'hiss'
+  | 'door';
 
 let lastHover = 0;
 
@@ -462,6 +464,17 @@ export function sfx(name: Sfx, strength = 1) {
         note({ type: 'square', freq: 650, freqEnd: 1250, dur: 0.42, gain: 0.032, at: i * 0.9 });
         note({ type: 'square', freq: 1250, freqEnd: 650, dur: 0.42, gain: 0.032, at: i * 0.9 + 0.43 });
       }
+      break;
+    case 'hiss':
+      // Airlock pressurising or venting (about 2.4 s).
+      burst({ type: 'bandpass', freq: 900, freqEnd: 2600, q: 0.5, dur: 2.4, gain: 0.07 * strength, attack: 0.3 });
+      burst({ type: 'lowpass', freq: 300, dur: 2.2, gain: 0.04 * strength, attack: 0.4 });
+      break;
+    case 'door':
+      // A hatch motor and its latch.
+      note({ type: 'sawtooth', freq: 110, freqEnd: 150, dur: 0.7, gain: 0.018, attack: 0.08 });
+      burst({ type: 'bandpass', freq: 700, q: 2, dur: 0.7, gain: 0.025, attack: 0.05 });
+      note({ freq: 180, freqEnd: 80, dur: 0.18, gain: 0.08, at: 0.68 });
       break;
     case 'tick':
       // Leak detector: a short tone whose pitch rises with the signal (strength 0..1).

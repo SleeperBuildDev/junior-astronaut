@@ -20,6 +20,10 @@ import {
   cinema,
   clock,
   drive,
+  airlockKpa,
+  fade,
+  habInside,
+  habLights,
   comms,
   fps,
   gameSpeed,
@@ -250,7 +254,23 @@ function Hud() {
           ) : null}
         </div>
       ) : null}
-      {warning.value ? <div class="warning">⚠ {t(warning.value)}</div> : null}
+      {warning.value ? (
+        warning.value.startsWith('i.') ? (
+          <div class="warning info">✓ {t(warning.value)}</div>
+        ) : (
+          <div class="warning">⚠ {t(warning.value)}</div>
+        )
+      ) : null}
+      {holdProgress.value !== null && !prompt.value ? (
+        <div class="prompt">
+          {t('p.hab.charging')}
+          <div class="bar hold">
+            <i style={{ width: `${Math.round(holdProgress.value * 100)}%` }} />
+          </div>
+        </div>
+      ) : null}
+      {habInside.value ? <HabBadge /> : null}
+      {airlockKpa.value !== null ? <AirlockPanel kpa={airlockKpa.value} /> : null}
       {missionNumber.value === 6 ? <StormBanner /> : null}
       {drive.value.driving ? <RoverDash /> : null}
       {missionNumber.value === 8 ? <EmergencyBanner /> : null}
@@ -2000,6 +2020,108 @@ function Cinema({ actions }: { actions: Actions }) {
   );
 }
 
+/** Inside HAB-1: cabin air and whether your suit is refilling from it. */
+function HabBadge() {
+  const ok = missionNumber.value >= 3 || life.value.habO2 >= SAFE_O2 - 0.05;
+  return (
+    <div class={`hab-badge ${ok ? '' : 'bad'}`}>
+      🏠 HAB-1 · {num(101)} kPa · O₂ {num(life.value.habO2.toFixed(1))}% · {ok ? t('hab.refill') : t('hab.noAir')}
+    </div>
+  );
+}
+
+/** Airlock cycle: the pressure climbing (or falling) between 0 and 101 kPa. */
+function AirlockPanel({ kpa }: { kpa: number }) {
+  return (
+    <div class="airlock-panel">
+      <small>{t('hab.airlock')}</small>
+      <b>{num(kpa)} kPa</b>
+      <div class="bar">
+        <i style={{ width: `${Math.min(100, (kpa / 101) * 100)}%` }} />
+      </div>
+      <small class="skip">{t('hab.skip')}</small>
+    </div>
+  );
+}
+
+/** HAB-1's console: cabin and base readings, and the habitat lights (day / evening / night). */
+function HabConsole({ actions }: { actions: Actions }) {
+  const l = life.value;
+  const p = power.value;
+  const ok = missionNumber.value >= 3 || l.habO2 >= SAFE_O2 - 0.05;
+  const modes = ['day', 'evening', 'night'] as const;
+  return (
+    <div class="modal-backdrop">
+      <div class="modal terminal hab-console">
+        <div class="modal-head">
+          <h2>🏠 {t('hc.title')}</h2>
+          <button class="btn small" onClick={actions.closeTerminal}>
+            {t('term.back')}
+          </button>
+        </div>
+        <div class="gauges three">
+          <div class="gauge">
+            <span>{t('hc.pressure')}</span>
+            <b class="good">{num(101)} kPa</b>
+            <small>{t('hc.pressureNote')}</small>
+          </div>
+          <div class="gauge">
+            <span>{t('hc.o2')}</span>
+            <b class={ok ? 'good' : 'low'}>{num(l.habO2.toFixed(1))}%</b>
+            <small>{ok ? t('hc.o2ok') : t('hc.o2low')}</small>
+          </div>
+          <div class="gauge">
+            <span>{t('hc.temp')}</span>
+            <b>{num(21)}°C</b>
+            <small>{t('hc.tempNote')}</small>
+          </div>
+        </div>
+        <div class="sys">
+          <div class="sys-head">
+            <b>{t('hc.base')}</b>
+          </div>
+          <div class="hc-rows">
+            <span>💧 {t('hc.water')}</span>
+            <b>{num(Math.round(l.waterL))} L</b>
+            {missionNumber.value >= 3 ? (
+              <>
+                <span>🔋 {t('hc.battery')}</span>
+                <b>
+                  {num(Math.round((p.batteryKWh / capacityKWh()) * 100))}% · ☀ {num(solarKW().toFixed(1))} kW
+                </b>
+              </>
+            ) : null}
+            {missionNumber.value >= 5 ? (
+              <>
+                <span>🥗 {t('hc.food')}</span>
+                <b>{t('hc.days', { n: num(Math.floor(greenhouse.value.foodDays)) })}</b>
+              </>
+            ) : null}
+            <span>🧑‍🚀 {t('hc.suit')}</span>
+            <b>
+              O₂ {num(Math.round(suit.value.o2))}% · {t('hud.power')} {num(Math.round(suit.value.power))}%
+            </b>
+          </div>
+        </div>
+        <div class="sys">
+          <div class="sys-head">
+            <b>💡 {t('hc.lights')}</b>
+          </div>
+          <div class="choice">
+            {modes.map((m) => (
+              <button class={`btn ${habLights.value === m ? 'on' : ''}`} onClick={() => (habLights.value = m)}>
+                {t('hc.light.' + m)}
+                <small>{t('hc.light.' + m + '.note')}</small>
+              </button>
+            ))}
+          </div>
+          <p class="hc-note">{t('hc.lightsNote')}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The music video "The Last Orbit" (rendered in this game's engine), after Mission 9's ending.
  *  The button, Enter, Space or Esc skips it; when it ends the complete screen shows. */
 function MusicVideo({ actions }: { actions: Actions }) {
@@ -2148,6 +2270,8 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'playing' && terminal.value === 'diag' && <DiagTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'aar' && <ReportTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'final' && <FinalReport actions={actions} />}
+      {sc === 'playing' && terminal.value === 'hab1' && <HabConsole actions={actions} />}
+      {fade.value > 0 ? <div class="fade-black" style={{ opacity: fade.value }} /> : null}
       {sc === 'playing' && !terminal.value && cardPopup.value && <KnowledgeCard id={cardPopup.value} onClose={() => (cardPopup.value = null)} />}
       <Panel actions={actions} />
     </>

@@ -29,6 +29,10 @@ export interface Outpost {
   floodSpots: { pos: THREE.Vector3; target: THREE.Vector3 }[];
   lander: THREE.Object3D;
   airlockLight: THREE.Mesh;
+  /** The outer hatch's hinge (rotation.y opens it). */
+  airlockHatch: THREE.Object3D;
+  /** HAB-1's window glass. */
+  habGlass: THREE.MeshStandardMaterial | null;
   arrays: VsatRig[];
   power: {
     pos: THREE.Vector3;
@@ -334,21 +338,54 @@ function strut(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Materia
 
 // ---------- modules ----------
 
+/** Doorway in the airlock's outer end: chamber floor to just under the top, in end-cap coordinates. */
+export const AIRLOCK_DOOR = { bottom: -0.7, top: 0.57, half: 0.45 };
+
+function roundedRect(path: THREE.Path, x0: number, y0: number, x1: number, y1: number, r: number) {
+  path.moveTo(x0 + r, y0);
+  path.lineTo(x1 - r, y0);
+  path.quadraticCurveTo(x1, y0, x1, y0 + r);
+  path.lineTo(x1, y1 - r);
+  path.quadraticCurveTo(x1, y1, x1 - r, y1);
+  path.lineTo(x0 + r, y1);
+  path.quadraticCurveTo(x0, y1, x0, y1 - r);
+  path.lineTo(x0, y0 + r);
+  path.quadraticCurveTo(x0, y0, x0 + r, y0);
+}
+
 function airlock(radius: number) {
+  void radius;
   const g = new THREE.Group();
-  const lift = radius + 0.9 + 1.2;
-  mesh(new THREE.CylinderGeometry(1.25, 1.25, 2.4, 32), mats.shell, g, [0, lift - 1.2 + 0.0, 0], [0, 0, Math.PI / 2]).position.set(-1.2, 1.25 + 0.9, 0);
-  // hatch
-  const hatch = mesh(new RoundedBoxGeometry(0.16, 1.7, 1.05, 3, 0.06), mats.white, g, [-2.45, 1.95, 0]);
+  // The tube is open at the outer end: an end cap with a doorway, so the hatch opens onto a real chamber.
+  mesh(new THREE.CylinderGeometry(1.25, 1.25, 2.4, 32, 1, true), mats.shell, g, [-1.2, 2.15, 0], [0, 0, Math.PI / 2]);
+  const capShape = new THREE.Shape().absarc(0, 0, 1.25, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  roundedRect(hole, -AIRLOCK_DOOR.half, AIRLOCK_DOOR.bottom, AIRLOCK_DOOR.half, AIRLOCK_DOOR.top, 0.14);
+  capShape.holes.push(hole);
+  mesh(new THREE.ShapeGeometry(capShape, 24), mats.shell, g, [-2.4, 2.15, 0], [0, -Math.PI / 2, 0]);
+  // The chamber inside: lining, floor plate and a dim amber strip light you see when the hatch opens.
+  const lining = new THREE.MeshStandardMaterial({ color: 0xa9adb3, roughness: 0.75, metalness: 0.1, side: THREE.BackSide });
+  mesh(new THREE.CylinderGeometry(1.17, 1.17, 2.36, 32, 1, true), lining, g, [-1.2, 2.15, 0], [0, 0, Math.PI / 2]);
+  // The end cap seen from inside (the outer one only faces outwards).
+  mesh(new THREE.ShapeGeometry(capShape, 24), lining, g, [-2.39, 2.15, 0], [0, -Math.PI / 2, 0]);
+  mesh(new THREE.BoxGeometry(2.36, 0.06, 1.86), new THREE.MeshStandardMaterial({ color: 0x5d636b, roughness: 0.8, metalness: 0.2 }), g, [-1.2, 1.42, 0]);
+  // Two dim lamp strips high on the side walls.
+  const lockLamp = new THREE.MeshStandardMaterial({ color: 0x221500, emissive: 0xffc070, emissiveIntensity: 1.4 });
+  for (const s of [-1, 1]) mesh(new THREE.BoxGeometry(1.5, 0.05, 0.05), lockLamp, g, [-1.2, 2.78, s * 0.98]).castShadow = false;
+  // hatch, hinged on its +Z edge so it swings outwards
+  const hinge = new THREE.Group();
+  hinge.position.set(-2.45, 1.95, 0.53);
+  g.add(hinge);
+  const hatch = mesh(new RoundedBoxGeometry(0.16, 1.7, 1.05, 3, 0.06), mats.white, hinge, [0, 0, -0.53]);
   hatch.name = 'hatch';
-  mesh(new THREE.BoxGeometry(0.08, 0.06, 0.5), mats.dark, g, [-2.56, 1.95, 0]);
+  mesh(new THREE.BoxGeometry(0.08, 0.06, 0.5), mats.dark, hinge, [-0.11, 0, -0.53]);
   mesh(new THREE.BoxGeometry(0.05, 1.86, 0.08), mats.hazard, g, [-2.42, 1.95, 0.6]);
   mesh(new THREE.BoxGeometry(0.05, 1.86, 0.08), mats.hazard, g, [-2.42, 1.95, -0.6]);
   const light = mesh(new THREE.SphereGeometry(0.07, 12, 8), mats.amber, g, [-2.47, 2.95, 0]);
   // steps up to the hatch
   mesh(new RoundedBoxGeometry(1.1, 0.25, 1.3, 2, 0.04), mats.dark, g, [-3.0, 0.62, 0]);
   mesh(new RoundedBoxGeometry(0.9, 0.25, 1.3, 2, 0.04), mats.dark, g, [-3.2, 0.3, 0]);
-  return { group: g, light, hatch };
+  return { group: g, light, hatch, hinge };
 }
 
 /** A deployable solar tower: rig parts that main.ts animates from the power simulation. */
@@ -575,6 +612,47 @@ function instance(model: THREE.Object3D) {
   return o;
 }
 
+/**
+ * The habitat model is built from closed cylinders and end domes, so inside it there is a solid disc
+ * every panel and a dome bulging in at each end. Cut away every triangle inside the shell (and the
+ * west dome where the airlock tube passes through it), so HAB-1 is hollow and can be walked into.
+ */
+function hollowHab(group: THREE.Object3D, lift: number) {
+  group.updateMatrixWorld(true);
+  const toLocal = group.matrixWorld.clone().invert();
+  const m = new THREE.Matrix4();
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const glass = !Array.isArray(mesh.material) && mesh.material.name.toLowerCase().includes('glass');
+    const geo = mesh.geometry.clone();
+    const pos = geo.attributes.position;
+    const index = geo.index ? Array.from(geo.index.array) : Array.from({ length: pos.count }, (_, i) => i);
+    m.multiplyMatrices(toLocal, mesh.matrixWorld);
+    const keep: number[] = [];
+    for (let i = 0; i < index.length; i += 3) {
+      a.fromBufferAttribute(pos, index[i]).applyMatrix4(m);
+      b.fromBufferAttribute(pos, index[i + 1]).applyMatrix4(m);
+      c.fromBufferAttribute(pos, index[i + 2]).applyMatrix4(m);
+      const x = (a.x + b.x + c.x) / 3;
+      const y = (a.y + b.y + c.y) / 3;
+      const z = (a.z + b.z + c.z) / 3;
+      const inside = Math.abs(x) < 4.52 && Math.hypot(y - lift, z) < 2.06;
+      const inTube = x < -4.45 && x > -7.1 && Math.hypot(y - 2.15, z) < 1.24;
+      if (glass || (!inside && !inTube)) keep.push(index[i], index[i + 1], index[i + 2]);
+    }
+    // Single-sided, so from inside you look straight through the hull's portholes.
+    const mat = mesh.material as THREE.Material;
+    if (!Array.isArray(mesh.material) && mat.side !== THREE.FrontSide) mesh.material = Object.assign(mat.clone(), { side: THREE.FrontSide });
+    if (keep.length === index.length) return;
+    geo.setIndex(keep);
+    mesh.geometry = geo;
+  });
+}
+
 /** A curved name band on a module's shell. */
 function moduleLabel(radius: number, lift: number, text: string) {
   const lab = new THREE.MeshStandardMaterial({ map: labelTexture(text), roughness: 0.6, transparent: false });
@@ -609,7 +687,17 @@ export function buildOutpost(models: OutpostModels): Outpost {
   habLabel.position.x = 0.9;
   hab.group.add(habLabel);
   place(hab.group, bx, bz, 0, by);
-  colliders.push({ kind: 'box', center: new THREE.Vector3(bx, by + hab.lift, bz), half: new THREE.Vector3(5.2, 2.15, 2.2) });
+  hollowHab(hab.group, hab.lift);
+  // HAB-1 can be entered: its colliders (shell walls around a walkable floor) come from interior.ts.
+  // See-through window glass, so you can look out from inside (main.ts turns its warm glow off then).
+  let habGlass: THREE.MeshStandardMaterial | null = null;
+  hab.group.traverse((c) => {
+    const m = c as THREE.Mesh;
+    if (!m.isMesh || Array.isArray(m.material) || !m.material.name.toLowerCase().includes('glass')) return;
+    habGlass ??= Object.assign((m.material as THREE.MeshStandardMaterial).clone(), { transparent: true, opacity: 0.3, depthWrite: false });
+    m.material = habGlass;
+    m.castShadow = false;
+  });
 
   // The node's third port faces north toward the lab.
   const node = instance(models.node_module);
@@ -1331,6 +1419,8 @@ export function buildOutpost(models: OutpostModels): Outpost {
     floodSpots,
     lander: landerObj,
     airlockLight: lock.light,
+    airlockHatch: lock.hinge,
+    habGlass,
     blinkers,
     sensorLights,
     airlockPos: new THREE.Vector3(bx - 7.1, by, bz),

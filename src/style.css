@@ -85,6 +85,24 @@ kbd {
   background: rgba(60, 8, 4, 0.8); border: 1px solid var(--red); color: #ffd7d3; border-radius: 10px; padding: 9px 18px;
   font-weight: 700; animation: pulse 0.9s infinite alternate;
 }
+.warning.info { background: rgba(4, 40, 24, 0.82); border-color: var(--green); color: #d6ffe6; animation: none; }
+.hab-badge {
+  position: absolute; left: 50%; top: 46px; transform: translateX(-50%); white-space: nowrap;
+  background: var(--glass); border: 1px solid var(--green); border-radius: 999px; padding: 4px 14px; font-size: 13px; font-family: var(--mono);
+}
+.hab-badge.bad { border-color: var(--amber); color: #ffe2b0; }
+.airlock-panel {
+  position: absolute; left: 50%; top: 34%; transform: translateX(-50%); width: 260px; text-align: center;
+  background: var(--glass); border: 1px solid var(--cyan); border-radius: 12px; padding: 10px 16px 8px; display: flex; flex-direction: column; gap: 4px;
+}
+.airlock-panel small { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--dim); text-transform: uppercase; }
+.airlock-panel b { font-family: var(--mono); font-size: 30px; }
+.airlock-panel .bar i { background: var(--cyan); }
+.airlock-panel .skip { letter-spacing: 0.04em; text-transform: none; }
+.fade-black { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 20; }
+.hc-rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-top: 8px; }
+.hc-rows b { font-family: var(--mono); font-weight: 400; text-align: right; }
+.hc-note { color: var(--dim); font-size: 13px; margin: 8px 0 0; }
 .fps { position: absolute; right: 8px; bottom: 6px; font-family: var(--mono); font-size: 10px; color: rgba(255, 255, 255, 0.35); }
 
 /* knowledge popup */

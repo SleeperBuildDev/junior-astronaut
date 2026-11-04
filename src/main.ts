@@ -11,7 +11,7 @@ import { effect } from '@preact/signals';
 import { audioState, beep, muteGame, playVoice, setExertion, setHum, sfx, startAudio, stopVoices, thud, type Sfx } from './audio/audio';
 import { createRenderer, Pipeline, PRESETS } from './engine/renderer';
 import { settings, updateSettings, type Quality } from './engine/settings';
-import { life, lifeOnline, resetLife } from './game/lifesupport';
+import { life, lifeOnline, resetLife, SAFE_O2 } from './game/lifesupport';
 import { buildCutscenes, CutscenePlayer, type Shot } from './game/cutscenes';
 import type { GameMission, MissionCtx } from './game/mission';
 import { Mission1 } from './game/mission1';
@@ -35,22 +35,24 @@ import { resetCrew } from './game/crew';
 import { habitat, habitatDone, resetHabitat } from './game/habitat';
 import { capacityKWh, power, powerOnline, resetPower, setArrayHealth, sunYaw } from './game/power';
 import { MISSION_COUNT, missionDone, progress } from './game/save';
-import { cardPopup, clock, knowledge, legend, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
+import { airlockKpa, cardPopup, clock, fade, habInside, habLights, knowledge, legend, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, unlock, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { addCollider, createPhysics } from './player/physics';
 import { Player } from './player/player';
+import { ease, look, Moves, path, type Step } from './player/moves';
 import { App, type Actions } from './ui/App';
 import { loadTextures } from './world/assets';
 import { buildOutpost, statusMaterials, type ColliderSpec, type Interactable, type OutpostModels } from './world/base';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { heightAt, LAYOUT } from './world/heightfield';
+import { buildInterior } from './world/interior';
 import { buildRocks } from './world/rocks';
 import { buildTrails } from './world/trails';
 import { Astronaut, SHADOW_LAYER } from './world/astronaut';
 import { buildGroundEffects } from './world/effects';
 import { buildDiscoveries } from './game/discoveries';
-import { buildSky, SUN_DIR, sunlight, sunPath } from './world/sky';
+import { buildSky, EARTH_DIR, SUN_DIR, sunlight, sunPath } from './world/sky';
 import { buildTerrain, regolithMaterial } from './world/terrain';
 
 const QA = new URLSearchParams(location.search).has('qa');
@@ -59,6 +61,8 @@ const FILM = new URLSearchParams(location.search).has('film');
 
 // Suit model (simplified for gameplay): a real suit holds about 8 hours of oxygen.
 const O2_PER_SEC = 100 / (14 * 60); // a full tank lasts ~14 real minutes of walking
+const HAB_O2_PER_SEC = 0.6; // inside HAB-1 the suit tank refills from the cabin supply (empty to full in ~3 min)
+const EYE_HEIGHT = 1.67; // player camera above the feet
 const POWER_PER_SEC = 100 / (30 * 60);
 const LAMP_POWER_PER_SEC = 100 / (20 * 60);
 const DOSE_PER_GAME_DAY = 1.37; // mSv/day on the lunar surface (Chang'e 4, 2019)
@@ -244,6 +248,9 @@ async function boot() {
   const loaded = await Promise.all(names.map((n) => gltf.loadAsync(`./assets/models/${n}.glb`)));
   const models = Object.fromEntries(names.map((n, i) => [n, loaded[i].scene])) as unknown as OutpostModels;
   const outpost = buildOutpost(models);
+  // HAB-1's inside: you walk in through the airlock.
+  const interior = buildInterior(outpost.habitatPos);
+  scene.add(interior.group);
   scene.add(outpost.group);
   // Floodlights light the deep shadows around the base (skipped on Low to save GPU time).
   const floodLights: THREE.SpotLight[] = [];
@@ -273,7 +280,7 @@ async function boot() {
   scene.add(discoveries.group);
   loadProgress.value = 0.85;
 
-  const { RAPIER, world, terrainHandle } = await createPhysics(terrain.physics, [...outpost.colliders, ...rocks.colliders, ...discoveries.colliders]);
+  const { RAPIER, world, terrainHandle } = await createPhysics(terrain.physics, [...outpost.colliders, ...interior.colliders, ...rocks.colliders, ...discoveries.colliders]);
   // The rover: parked by the habitat until Mission 7, then drivable.
   const rover = new Rover(RAPIER, world, outpost.rover, terrainHandle);
   const roverPark = { pos: outpost.rover.position.clone(), yaw: outpost.rover.rotation.y };
@@ -290,8 +297,12 @@ async function boot() {
   player.onLand = (fall) => {
     thud(fall);
     bodyShadow.land(fall);
-    fx.land(player!.feet, fall);
+    if (!habInside.value) fx.land(player!.feet, fall);
   };
+  // Camera moves (rover seat, airlock, interior stations) and the airlock's outer hatch.
+  const moves = new Moves();
+  let hatchOpen = 0;
+  let hatchTarget = 0;
   player.onStep = (k) => sfx('step', k);
   player.onJump = () => sfx('jump');
   player.onBoundary = () => {
@@ -334,7 +345,20 @@ async function boot() {
     } else if (screen.value === 'mtv') {
       e.preventDefault();
       if (!e.repeat && performance.now() - mvStarted > 1000) actions.endMusicVideo!();
+    } else if (screen.value === 'playing' && moves.active && moves.skippable && e.code === 'Space' && !e.repeat) {
+      moves.skip(camera);
+      input.pressed('Space');
     }
+  });
+  // Compile the shaders for the interior lights now, so the first walk-in doesn't stutter.
+  interior.setLightsOn(true);
+  renderer.compile(scene, camera);
+  interior.setLightsOn(false);
+  effect(() => interior.setMode(habLights.value));
+  // HAB-1's windows glow warm from outside; from inside the glass is clear.
+  const habGlow = outpost.habGlass?.emissiveIntensity ?? 0;
+  effect(() => {
+    if (outpost.habGlass) outpost.habGlass.emissiveIntensity = habInside.value ? 0 : habGlow;
   });
   loadProgress.value = 1;
 
@@ -393,6 +417,11 @@ async function boot() {
   }
 
   function resetMission() {
+    // A walk-in or rover move cut short (mission ended, restarted): you can walk again.
+    moves.cancel();
+    leaveHabitatNow();
+    player!.setEnabled(true);
+    holdProgress.value = null;
     for (const e of registry.values()) e.m.end?.();
     fx.clear();
     discoveries.cleanup();
@@ -415,14 +444,40 @@ async function boot() {
   const viewDir = () => new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
 
   // ---------- rover: getting in and out ----------
+  const camPose = () => ({ pos: camera.position.clone(), quat: camera.quaternion.clone() });
+  const roverLeft = () => new THREE.Vector3(-Math.sin(rover.yaw), 0, -Math.cos(rover.yaw));
+  /** Step up beside the seat, swing in and sit down; then you drive. */
   function enterRover() {
-    rover.driving = true;
     rover.lookYaw = 0;
     rover.lookPitch = -0.08;
     player!.setEnabled(false);
     prompt.value = null;
-    sfx('clunk');
-    drive.value = { driving: true, speed: 0, battery: rover.battery };
+    const from = camPose();
+    const seatCam = new THREE.PerspectiveCamera();
+    rover.applyCamera(seatCam);
+    const side = seatCam.position.clone().addScaledVector(roverLeft(), 0.85).add(new THREE.Vector3(0, 0.14, 0));
+    let sat = false;
+    moves.play(
+      [
+        {
+          dur: 1.15,
+          pose: path([from.pos, side, seatCam.position], from.quat, seatCam.quaternion, 0.2, 1),
+          update: (_k, raw) => {
+            if (raw > 0.82 && !sat) {
+              sat = true;
+              sfx('clunk');
+            }
+          },
+        },
+      ],
+      camera,
+      () => {
+        rover.driving = true;
+        drive.value = { driving: true, speed: 0, battery: rover.battery };
+        current().m.interact('rover');
+      },
+      false,
+    );
   }
   function leaveRover(sound = true) {
     if (!rover.driving) return;
@@ -433,21 +488,291 @@ async function boot() {
       flash('w.noRoomExit');
       return;
     }
-    rover.driving = false;
     rover.speed = 0;
-    player!.setEnabled(true);
-    player!.teleport(out ?? rover.obj.position.clone().add(new THREE.Vector3(0, 2.2, 0)), rover.yaw - Math.PI / 2);
-    player!.pitch = 0;
-    if (sound) sfx('clunk');
     drive.value = { driving: false, speed: 0, battery: rover.battery };
+    const yaw = rover.yaw - Math.PI / 2;
+    const feet = out ?? rover.obj.position.clone().add(new THREE.Vector3(0, 2.2, 0));
+    const finish = () => {
+      rover.driving = false;
+      player!.setEnabled(true);
+      player!.teleport(feet, yaw);
+      player!.pitch = 0;
+    };
+    if (!sound || !out) return finish();
+    // Swing the legs out over the side and step down.
+    const from = camPose();
+    const side = from.pos.clone().addScaledVector(roverLeft(), 0.8).add(new THREE.Vector3(0, 0.12, 0));
+    sfx('clunk');
+    moves.play([{ dur: 1.1, pose: path([from.pos, side, feet.clone().add(new THREE.Vector3(0, EYE_HEIGHT, 0))], from.quat, look(yaw, 0), 0, 0.8) }], camera, finish, false);
+  }
+
+  // ---------- HAB-1: walking in and out through the airlock ----------
+  const H = outpost.habitatPos;
+  /** World point at x along the module and y above the base pad, on the module's centre line. */
+  const hp = (x: number, y: number) => new THREE.Vector3(H.x + x, H.y + y, H.z);
+  const EAST = look(-Math.PI / 2, 0);
+  const WEST = look(Math.PI / 2, 0);
+  const CHAMBER = hp(-6.15, 2.97);
+  const HAB_SPOT = hp(-3.7, 1.7);
+  const walkTime = (from: THREE.Vector3, to: THREE.Vector3) => Math.min(1.4, Math.max(0.6, from.distanceTo(to) / 2.2));
+  function enterHabitat() {
+    player!.setEnabled(false);
+    prompt.value = null;
+    const from = camPose();
+    const stand = hp(-7.75, 2.42); // on the top step, facing the hatch
+    const steps: Step[] = [
+      { dur: walkTime(from.pos, stand), pose: path([from.pos, stand], from.quat, look(-Math.PI / 2, -0.06)) },
+      {
+        dur: 0.9,
+        start: () => {
+          hatchTarget = 1;
+          sfx('door');
+        },
+      },
+      {
+        dur: 1.3,
+        start: () => {
+          interior.setChamberAir(0);
+          interior.setLightsOn(true);
+        },
+        pose: path([stand, hp(-7.05, 2.62), CHAMBER], look(-Math.PI / 2, -0.06), EAST),
+      },
+      // Look back and watch the hatch shut.
+      { dur: 0.6, pose: path([CHAMBER, CHAMBER], EAST, look(Math.PI / 2 - 0.01, -0.06)) },
+      {
+        dur: 0.8,
+        start: () => {
+          hatchTarget = 0;
+          sfx('door');
+        },
+      },
+      { dur: 0.6, pose: path([CHAMBER, CHAMBER], look(Math.PI / 2 - 0.01, -0.06), EAST) },
+      // Fill the chamber with air: 0 -> 101 kPa, the lamp turns from red to green.
+      {
+        dur: 2.4,
+        start: () => sfx('hiss'),
+        update: (k) => {
+          airlockKpa.value = Math.round(101 * k);
+          interior.setChamberAir(k);
+        },
+        end: () => {
+          airlockKpa.value = null;
+          beep('ok');
+        },
+      },
+      {
+        dur: 0.8,
+        start: () => {
+          interior.setInnerDoor(true);
+          sfx('door');
+        },
+      },
+      { dur: 1.4, pose: path([CHAMBER, hp(-4.55, 3.12), HAB_SPOT.clone().setY(HAB_SPOT.y + EYE_HEIGHT)], EAST, EAST) },
+    ];
+    moves.play(steps, camera, () => {
+      habInside.value = true;
+      interior.setInnerDoor(false);
+      sfx('door');
+      player!.setEnabled(true);
+      player!.teleport(HAB_SPOT, -Math.PI / 2);
+      player!.pitch = 0;
+      unlock('airlock');
+    });
+  }
+  function exitHabitat() {
+    player!.setEnabled(false);
+    prompt.value = null;
+    const from = camPose();
+    const near = hp(-3.85, 1.7 + EYE_HEIGHT);
+    const outFeet = new THREE.Vector3(H.x - 9.0, 0, H.z);
+    outFeet.y = heightAt(outFeet.x, outFeet.z);
+    const steps: Step[] = [
+      { dur: walkTime(from.pos, near), pose: path([from.pos, near], from.quat, WEST) },
+      {
+        dur: 0.8,
+        start: () => {
+          interior.setChamberAir(1);
+          interior.setInnerDoor(true);
+          sfx('door');
+        },
+      },
+      { dur: 1.4, pose: path([near, hp(-4.55, 3.12), CHAMBER], WEST, WEST) },
+      {
+        dur: 0.8,
+        start: () => {
+          interior.setInnerDoor(false);
+          sfx('door');
+        },
+      },
+      // Pump the air out: 101 -> 0 kPa, green to red.
+      {
+        dur: 2.2,
+        start: () => sfx('hiss'),
+        update: (k) => {
+          airlockKpa.value = Math.round(101 * (1 - k));
+          interior.setChamberAir(1 - k);
+        },
+        end: () => {
+          airlockKpa.value = null;
+          beep('ok');
+        },
+      },
+      {
+        dur: 0.9,
+        start: () => {
+          hatchTarget = 1;
+          habInside.value = false;
+          sfx('door');
+        },
+      },
+      { dur: 1.7, pose: path([CHAMBER, hp(-7.05, 2.62), hp(-7.75, 2.42), outFeet.clone().setY(outFeet.y + EYE_HEIGHT)], WEST, look(Math.PI / 2, -0.04)) },
+    ];
+    moves.play(steps, camera, () => {
+      habInside.value = false;
+      interior.setLightsOn(false);
+      hatchTarget = 0;
+      sfx('door');
+      player!.setEnabled(true);
+      player!.teleport(outFeet, Math.PI / 2);
+      player!.pitch = 0;
+    });
+  }
+  /** Mission reset or blackout: you are simply outside again. */
+  function leaveHabitatNow() {
+    habInside.value = false;
+    interior.setLightsOn(false);
+    interior.setInnerDoor(false);
+    hatchTarget = 0;
+    airlockKpa.value = null;
+    fade.value = 0;
+  }
+
+  // ---------- HAB-1 stations ----------
+  function useStation(id: string, it: Interactable) {
+    const from = camPose();
+    if (id === 'hab-suit') {
+      // Plug the suit into the port: oxygen and battery to full.
+      player!.setEnabled(false);
+      moves.play(
+        [
+          {
+            dur: 2.6,
+            start: () => sfx('refill'),
+            update: (k) => (holdProgress.value = k),
+            end: () => (holdProgress.value = null),
+          },
+        ],
+        camera,
+        () => {
+          player!.setEnabled(true);
+          suit.value = { ...suit.value, o2: 100, power: 100 };
+          lowO2Warned = false;
+          sfx('powerup');
+          flash('i.hab.suitDone');
+          unlock('plss');
+        },
+      );
+    } else if (id === 'hab-galley') {
+      sfx('refill');
+      suit.value = { ...suit.value, health: Math.min(100, suit.value.health + 15) };
+      flash('i.hab.drink');
+      unlock('foodsystem');
+    } else if (id === 'hab-bike') {
+      // Sit on the bike and pedal for a few seconds (good for muscles and bones).
+      player!.setEnabled(false);
+      const seat = interior.at(-2.36, 1.55, 0.86);
+      const q = look(-Math.PI / 2, -0.12);
+      moves.play(
+        [
+          { dur: 1.0, pose: path([from.pos, seat], from.quat, q) },
+          {
+            dur: 4.2,
+            start: () => {
+              interior.pedal(4.2);
+              sfx('servo');
+            },
+            update: (_k, raw) => {
+              moves.pose.pos.copy(seat).y += Math.abs(Math.sin(raw * 26)) * 0.018;
+              moves.pose.quat.copy(q);
+            },
+          },
+          { dur: 0.9, pose: path([seat, from.pos], q, from.quat) },
+        ],
+        camera,
+        () => {
+          player!.setEnabled(true);
+          suit.value = { ...suit.value, health: Math.min(100, suit.value.health + 5) };
+          flash('i.hab.bike');
+          unlock('exercise');
+        },
+      );
+    } else if (id === 'hab-console') {
+      terminal.value = 'hab1';
+      input.unlock();
+    } else if (id === 'hab-window') {
+      // Lean in to the porthole and zoom in on Earth.
+      player!.setEnabled(false);
+      const eye = interior.at(2.4, 1.55, -1.62);
+      const q = look(Math.atan2(-EARTH_DIR.x, -EARTH_DIR.z), Math.asin(EARTH_DIR.y));
+      const fov0 = camera.fov;
+      const zoom = (f: number) => {
+        camera.fov = f;
+        camera.updateProjectionMatrix();
+      };
+      moves.play(
+        [
+          { dur: 1.2, pose: path([from.pos, eye], from.quat, q) },
+          { dur: 1.6, update: (k) => zoom(fov0 + (22 - fov0) * k) },
+          { dur: 3.0 },
+          { dur: 1.2, update: (k) => zoom(22 + (fov0 - 22) * k) },
+          { dur: 1.0, pose: path([eye, from.pos], q, from.quat) },
+        ],
+        camera,
+        () => {
+          zoom(fov0);
+          player!.setEnabled(true);
+          unlock('earth');
+        },
+      );
+    } else if (id === 'hab-bunk') {
+      // Lie down in the sleep station for a rest: the screen fades out and back in.
+      player!.setEnabled(false);
+      // Sit on the edge of the bunk, looking in at the pillow and the reading light.
+      const p = it.object.getWorldPosition(new THREE.Vector3());
+      const side = Math.sign(p.z - H.z);
+      const eye = new THREE.Vector3(p.x - 0.2, interior.floor + 1.25, p.z - side * 0.42);
+      const pillow = new THREE.Vector3(p.x + 0.5, interior.floor + 0.45, p.z);
+      const d = pillow.clone().sub(eye);
+      const q = look(Math.atan2(-d.x, -d.z), Math.atan2(d.y, Math.hypot(d.x, d.z)));
+      moves.play(
+        [
+          { dur: 1.1, pose: path([from.pos, eye], from.quat, q) },
+          { dur: 1.0, update: (k) => (fade.value = k) },
+          { dur: 1.6, start: () => (suit.value = { ...suit.value, health: 100 }) },
+          { dur: 1.0, update: (k) => (fade.value = 1 - k) },
+          { dur: 1.0, pose: path([eye, from.pos], q, from.quat) },
+        ],
+        camera,
+        () => {
+          fade.value = 0;
+          player!.setEnabled(true);
+          flash('i.hab.rested');
+          unlock('sleep');
+        },
+      );
+    } else if (id === 'hab-node') {
+      beep('warn');
+      flash('w.hab.node');
+    }
   }
 
   // ---------- interaction ----------
   const ray = new THREE.Raycaster();
   ray.far = 3.4;
-  const allInteractables = [...outpost.interactables, ...discoveries.interactables];
+  const allInteractables = [...outpost.interactables, ...interior.interactables, ...discoveries.interactables];
   const targets = allInteractables.map((i) => i.object);
   const byObject = new Map<THREE.Object3D, Interactable>(allInteractables.map((i) => [i.object, i]));
+  const indoor = new Set<Interactable>(interior.interactables);
   let focused: Interactable | null = null;
   let warningTimer = 0;
   const flash = (msg: string, secs = 3) => {
@@ -478,6 +803,8 @@ async function boot() {
     if (secret) return knowledge.value.includes(secret) ? 'p.disc.again' : 'p.disc';
     const l = current().m.label(it.id);
     if (l) return l;
+    if (it.id === 'airlock' && missionNumber.value !== 1) return 'p.hab.enter';
+    if (it.id === 'hab-exit') return current().m.label('airlock') ?? it.label();
     if (it.id === 'o2') return suit.value.o2 > 98 ? 'p.o2full' : 'p.o2refill';
     return it.label();
   }
@@ -485,11 +812,21 @@ async function boot() {
   function use(it: Interactable) {
     const secret = discoveries.idOf(it.id);
     if (secret) return playDiscovery(secret);
-    if (it.id === 'rover') {
-      enterRover();
-      current().m.interact('rover');
+    if (it.id === 'rover') return enterRover();
+    // The airlock leads into HAB-1, unless the mission needs it (the storm shelter, Mission 1's ending).
+    const lockClaimed = missionNumber.value === 1 || !!current().m.label('airlock');
+    if (it.id === 'airlock' && !lockClaimed) return enterHabitat();
+    if (it.id === 'hab-exit') {
+      if (!lockClaimed) return exitHabitat();
+      const reason = current().m.interact('airlock');
+      if (reason) {
+        beep('warn');
+        flash(reason);
+      }
+      if (terminal.value) input.unlock();
       return;
     }
+    if (it.id.startsWith('hab-')) return useStation(it.id, it);
     if (it.id === 'o2') {
       if (suit.value.o2 > 98) return;
       suit.value = { ...suit.value, o2: 100 };
@@ -542,7 +879,9 @@ async function boot() {
 
   const ndc = new THREE.Vector3();
   function updateGuide(now: number) {
-    const target = screen.value === 'playing' && !terminal.value && player ? current().m.guide(ctx()) : null;
+    let target = screen.value === 'playing' && !terminal.value && player && !moves.active ? current().m.guide(ctx()) : null;
+    // Inside HAB-1 every job is outside (or in the shelter): point at the way out.
+    if (target && habInside.value) target = { pos: interior.at(-4.5, 1.3, 0), label: current().m.label('airlock') ? target.label : 'wp.hab.exit' };
     if (!target || !player) {
       if (waypoint.value) waypoint.value = null;
       beam.visible = false;
@@ -603,7 +942,19 @@ async function boot() {
     const playing = inMission && !terminal.value;
 
     if (screen.value === 'cutscene') cut.update(dt, camera);
-    else if (player && rover.driving) {
+    else if (player && moves.active) {
+      // A camera move (rover seat, airlock, a station): the world and the mission keep going.
+      if (inMission) moves.update(dt, camera);
+      input.takeLook();
+      prompt.value = null;
+      focused = null;
+      if (playing) simulateSuit(dt);
+      if (inMission && started) {
+        current().m.update(dt, ctx());
+        advanceClock(dt);
+      }
+      input.endFrame();
+    } else if (player && rover.driving) {
       // Driving: the rover moves and steps the physics; E gets out. Paused or a panel: it waits.
       if (inMission) {
         rover.update(dt, input, playing);
@@ -681,6 +1032,8 @@ async function boot() {
         focused = hit ? (byObject.get(hit.object) ?? null) : null;
         // Ignore things not in use yet: before their mission, or hidden (raycasts still hit hidden meshes).
         if (focused && ((focused.minMission ?? 0) > missionNumber.value || !shown(focused.object))) focused = null;
+        // The hull is in between: no using HAB-1's stations from outside, or the outside from in there.
+        if (focused && indoor.has(focused) !== habInside.value) focused = null;
         prompt.value = focused ? labelFor(focused) : null;
 
         simulateSuit(dt);
@@ -721,9 +1074,13 @@ async function boot() {
     sky.update(camera);
     fx.update(dt);
     // Secret finds of this mission: glints and the scanner chirp.
-    discoveries.update(dt, missionNumber.value, player && screen.value === 'playing' && !rover.driving ? player.feet : null, knowledge.value, suit.value.light, screen.value === 'cutscene');
+    discoveries.update(dt, missionNumber.value, player && screen.value === 'playing' && !rover.driving && !habInside.value ? player.feet : null, knowledge.value, suit.value.light, screen.value === 'cutscene');
+    // The airlock's outer hatch swings to where the walk-in/out wants it; the interior animates.
+    hatchOpen += THREE.MathUtils.clamp(hatchTarget - hatchOpen, -dt / 0.85, dt / 0.85);
+    outpost.airlockHatch.rotation.y = ease(hatchOpen) * 1.75;
+    interior.update(dt, suit.value);
     // A boot print every 0.7 m walked (one real stride), alternating left and right.
-    if (player && screen.value === 'playing' && !rover.driving) {
+    if (player && screen.value === 'playing' && !rover.driving && !habInside.value && !moves.active) {
       const f = player.feet;
       const moved = Math.hypot(f.x - printFeet.x, f.z - printFeet.z);
       if (moved > 3) printFeet.copy(f); // teleported
@@ -737,7 +1094,7 @@ async function boot() {
       printFeet.copy(f);
     }
     // Your own body's long shadow on the ground (Medium and High).
-    const showBody = !!player && screen.value !== 'cutscene' && !rover.driving && settings.value.quality !== 'low';
+    const showBody = !!player && screen.value !== 'cutscene' && !rover.driving && !moves.active && !habInside.value && settings.value.quality !== 'low';
     bodyShadow.root.visible = showBody;
     if (showBody && dt > 0) {
       // Real ground speed (smoothed), so the stride matches how far you actually moved.
@@ -778,11 +1135,17 @@ async function boot() {
   function simulateSuit(dt: number) {
     const s = { ...suit.value };
     const exertion = rover.driving ? 0.8 : player!.sprinting ? 1.8 : player!.moving ? 1.15 : 0.8;
-    s.o2 = Math.max(0, s.o2 - O2_PER_SEC * exertion * dt);
+    // Inside HAB-1 (once its air is breathable) the suit tank slowly refills instead of draining.
+    const inside = habInside.value;
+    if (inside && habAirOk()) {
+      s.o2 = Math.min(100, s.o2 + HAB_O2_PER_SEC * dt);
+      if (s.o2 > 40) lowO2Warned = false;
+    } else s.o2 = Math.max(0, s.o2 - O2_PER_SEC * exertion * dt);
     s.power = Math.max(0, s.power - (POWER_PER_SEC + (s.light ? LAMP_POWER_PER_SEC : 0)) * dt);
     if (s.power === 0) s.light = false;
-    s.dose += (DOSE_PER_GAME_DAY / 86400) * gameSpeed.value * dt;
-    s.tempOut = -48 + Math.sin(performance.now() / 9000) * 3;
+    // The habitat's walls and water stop part of the radiation.
+    s.dose += (DOSE_PER_GAME_DAY / 86400) * gameSpeed.value * dt * (inside ? 0.3 : 1);
+    s.tempOut = inside ? 21 : -48 + Math.sin(performance.now() / 9000) * 3;
     if (s.o2 === 0) {
       s.health = Math.max(0, s.health - 4 * dt);
       if (warningTimer <= 0) {
@@ -798,6 +1161,14 @@ async function boot() {
     }
     if (s.health === 0) {
       flash('w.blackout', 5);
+      moves.cancel();
+      leaveHabitatNow();
+      if (rover.driving) {
+        rover.driving = false;
+        rover.speed = 0;
+        drive.value = { driving: false, speed: 0, battery: rover.battery };
+      }
+      player!.setEnabled(true);
       player!.teleport(current().spawn.pos, current().spawn.yaw);
       s.o2 = 100;
       s.health = 60;
@@ -805,6 +1176,11 @@ async function boot() {
     }
     suit.value = s;
     setExertion(player!.sprinting && !rover.driving ? 1 : s.o2 < 20 ? 0.8 : 0.2);
+  }
+
+  /** HAB-1's air is breathable once life support is running (from Mission 2's start-up on). */
+  function habAirOk() {
+    return missionNumber.value >= 3 || life.value.habO2 >= SAFE_O2 - 0.05;
   }
 
   function advanceClock(dt: number) {
@@ -973,6 +1349,15 @@ async function boot() {
         },
         closeDiscovery: () => actions.closeDiscovery?.(),
         musicVideo: () => actions.playMusicVideo!(),
+        habEnter: () => enterHabitat(),
+        habExit: () => exitHabitat(),
+        habUse: (id: string) => {
+          const it = interior.interactables.find((i) => i.id === id)!;
+          if (id === 'hab-exit') use(it);
+          else useStation(id, it);
+        },
+        hab: () => ({ inside: habInside.value, moving: moves.active, kpa: airlockKpa.value, fade: fade.value, hatch: hatchOpen }),
+        skipMove: () => moves.skip(camera),
         endMusicVideo: () => actions.endMusicVideo!(),
         power: () => ({ ...power.value, sunYaw: sunYaw() }),
         habitat: () => habitat.value,
@@ -1022,6 +1407,18 @@ async function boot() {
           return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown';
         },
         info: () => ({ ...renderer.info.render, fps: fps.value }),
+        /** What is under the crosshair (debugging). */
+        pick: () => {
+          const r = new THREE.Raycaster();
+          camera.updateMatrixWorld();
+          r.setFromCamera(new THREE.Vector2(0, 0), camera);
+          const chain = (o: THREE.Object3D | null): string => (o ? `${chain(o.parent)}/${o.name || o.type}` : '');
+          return r
+            .intersectObjects(scene.children, true)
+            .filter((h) => h.distance > 0.01 && (h.object as THREE.Mesh).isMesh && shown(h.object))
+            .slice(0, 6)
+            .map((h) => ({ obj: chain(h.object).slice(-90), d: +h.distance.toFixed(2), at: h.point.toArray().map((v) => +v.toFixed(2)), cam: camera.position.toArray().map((v) => +v.toFixed(2)) }));
+        },
         show: (name: string, on: boolean) => {
           const o = scene.getObjectByName(name);
           if (o) o.visible = on;

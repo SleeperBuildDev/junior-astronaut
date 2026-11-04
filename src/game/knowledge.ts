@@ -718,6 +718,39 @@ export const CARDS: Record<string, Card> = {
     inGame: 'Real laser beams are invisible in space and spread to a few kilometres wide by the time they reach the Moon. We drew a green beam so you can see it.',
     source: 'NASA Lunar Laser Ranging',
   },
+  airlock: {
+    id: 'airlock',
+    title: 'How an airlock works',
+    icon: '🚪',
+    body: [
+      'An airlock is a small room with two doors: one into the habitat and one to the outside. Only one door opens at a time. To go out, astronauts close the inner door and pumps take the air out until the pressure is almost zero; only then can the outer door open. Coming back, the room is filled with air again before the inner door opens.',
+      'On the ISS, the Quest airlock saves air by pumping most of it back into the station instead of letting it escape into space. On the Moon an airlock also helps keep out the sharp, clingy lunar dust: after their moonwalks the Apollo astronauts found it on everything.',
+    ],
+    inGame: 'Our airlock fills and empties in a few seconds. A real one takes several minutes, and spacewalkers often breathe pure oxygen for a while before going out.',
+    source: 'NASA: ISS Quest Joint Airlock; NASA Apollo lunar dust reports',
+  },
+  exercise: {
+    id: 'exercise',
+    title: 'Exercise in low gravity',
+    icon: '🚴',
+    body: [
+      'In low gravity, muscles and bones do less work, so they get weaker. In weightlessness, astronauts who did not exercise could lose about 1 to 1.5 percent of the bone in their hips and legs every month.',
+      'ISS astronauts exercise for about 2 hours every day, on an exercise bike, a treadmill (with straps that pull them down) and a weightlifting machine. The Moon’s gravity, one sixth of Earth’s, helps a little, but scientists expect Moon crews will still need to exercise every day.',
+    ],
+    inGame: 'A few seconds on the bike gives you a little health. Real crews exercise for hours, every day.',
+    source: 'NASA Human Research Program; NASA ISS exercise equipment (CEVIS, T2, ARED)',
+  },
+  plss: {
+    id: 'plss',
+    title: 'A spacesuit is a tiny spaceship',
+    icon: '🎒',
+    body: [
+      'The backpack on a spacesuit is its Portable Life Support System. It gives you oxygen, removes the carbon dioxide you breathe out, and pumps cool water through thin tubes in a special undergarment so you do not overheat in the sunshine.',
+      'Between moonwalks the suit is plugged into the habitat to charge its battery, refill its oxygen and water, and clean or swap its carbon dioxide filters. Apollo’s backpack let astronauts work outside for up to about 7 hours.',
+    ],
+    inGame: 'Our suit station refills everything in a few seconds. Real servicing takes hours.',
+    source: 'NASA: Apollo Portable Life Support System; NASA EMU and xEMU life support',
+  },
   eclipse: {
     id: 'eclipse',
     title: 'When Earth hides the Sun',
