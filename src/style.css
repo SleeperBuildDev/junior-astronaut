@@ -205,6 +205,11 @@ kbd {
 @keyframes fade-in { from { opacity: 0; } }
 .cine-skip { position: absolute; right: 22px; top: calc(11vh + 14px); opacity: 0.75; }
 .cine-skip small { font-weight: 400; color: var(--dim); margin-left: 6px; }
+.mtv { position: absolute; inset: 0; background: #000; pointer-events: auto; z-index: 40; animation: fadeIn 0.8s both; }
+.mtv video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.mtv-skip { top: 22px; }
+.mtv-wait { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--dim); letter-spacing: 0.08em; }
+.mtv-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 body.lang-my .cine-caption { font-family: 'Noto Sans Myanmar', var(--title); letter-spacing: 0.05em; }
 
 /* ---------- guidance ---------- */

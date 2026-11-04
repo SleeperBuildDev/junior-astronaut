@@ -81,6 +81,11 @@ export function setVolume(v: number) {
   if (ctx) master.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
 }
 
+/** Silences every game sound while the music video plays its own soundtrack. */
+export function muteGame(on: boolean) {
+  if (ctx) void (on ? ctx.suspend() : ctx.resume());
+}
+
 /** Faster breathing when sprinting or low on oxygen. */
 export function setExertion(level: number) {
   if (!ctx) return;

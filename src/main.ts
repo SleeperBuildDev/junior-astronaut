@@ -8,7 +8,7 @@ import '@fontsource/noto-sans-myanmar/700.css';
 import * as THREE from 'three';
 import { render, h } from 'preact';
 import { effect } from '@preact/signals';
-import { audioState, beep, playVoice, setExertion, setHum, sfx, startAudio, thud, type Sfx } from './audio/audio';
+import { audioState, beep, muteGame, playVoice, setExertion, setHum, sfx, startAudio, stopVoices, thud, type Sfx } from './audio/audio';
 import { createRenderer, Pipeline, PRESETS } from './engine/renderer';
 import { settings, updateSettings, type Quality } from './engine/settings';
 import { life, lifeOnline, resetLife } from './game/lifesupport';
@@ -34,7 +34,7 @@ import { resetConstruction } from './game/construction';
 import { resetCrew } from './game/crew';
 import { habitat, habitatDone, resetHabitat } from './game/habitat';
 import { capacityKWh, power, powerOnline, resetPower, setArrayHealth, sunYaw } from './game/power';
-import { missionDone, progress } from './game/save';
+import { MISSION_COUNT, missionDone, progress } from './game/save';
 import { cardPopup, clock, knowledge, legend, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { addCollider, createPhysics } from './player/physics';
@@ -91,6 +91,7 @@ async function boot() {
   const registry = new Map<number, MissionEntry>();
   const current = () => registry.get(missionNumber.value)!;
   let started = false;
+  let mvStarted = 0;
   const cut = new CutscenePlayer();
   let scenes: ReturnType<typeof buildCutscenes> | null = null;
   function playCut(shots: Shot[] | undefined, done: () => void) {
@@ -150,6 +151,21 @@ async function boot() {
       input.enabled = false;
       resetMission();
       screen.value = 'menu';
+    },
+    playMusicVideo() {
+      input.enabled = false;
+      input.unlock();
+      panel.value = null;
+      prompt.value = null;
+      stopVoices(); // a narration still going would only freeze, then finish over the complete screen
+      muteGame(true);
+      mvStarted = performance.now();
+      screen.value = 'mtv';
+    },
+    endMusicVideo() {
+      if (screen.value !== 'mtv') return;
+      muteGame(false);
+      screen.value = 'complete';
     },
     setQuality(q: Quality) {
       updateSettings({ quality: q });
@@ -304,13 +320,20 @@ async function boot() {
       panel.value = null;
       terminal.value = null;
       missionDone(n);
-      playCut(e.ending, () => (screen.value = 'complete'));
+      // Winning Mission 9 (the last one) plays the music video before the complete screen.
+      const won = n === MISSION_COUNT && !settlement.value.failed;
+      playCut(e.ending, () => (won ? actions.playMusicVideo!() : (screen.value = 'complete')));
     };
-  // Space, Enter or Esc skips a cutscene.
+  // Space, Enter or Esc skips a cutscene or the music video. The video ignores held keys and
+  // its first second, so the key that skipped the ending cutscene doesn't skip it too.
   addEventListener('keydown', (e) => {
-    if (screen.value === 'cutscene' && ['Space', 'Enter', 'Escape'].includes(e.code)) {
+    if (!['Space', 'Enter', 'Escape'].includes(e.code)) return;
+    if (screen.value === 'cutscene') {
       e.preventDefault();
       cut.skip();
+    } else if (screen.value === 'mtv') {
+      e.preventDefault();
+      if (!e.repeat && performance.now() - mvStarted > 1000) actions.endMusicVideo!();
     }
   });
   loadProgress.value = 1;
@@ -575,6 +598,7 @@ async function boot() {
   const loop = (t: number) => {
     timer.update(t);
     const dt = Math.min(timer.getDelta(), 0.1);
+    if (screen.value === 'mtv') return; // the video covers the screen: leave the GPU to it
     const inMission = screen.value === 'playing' && !panel.value;
     const playing = inMission && !terminal.value;
 
@@ -948,6 +972,8 @@ async function boot() {
           playDiscovery(id);
         },
         closeDiscovery: () => actions.closeDiscovery?.(),
+        musicVideo: () => actions.playMusicVideo!(),
+        endMusicVideo: () => actions.endMusicVideo!(),
         power: () => ({ ...power.value, sunYaw: sunYaw() }),
         habitat: () => habitat.value,
         greenhouse: () => greenhouse.value,

@@ -78,6 +78,11 @@ Done and tested (git history has one commit per milestone):
   and casts your long shadow (Medium/High) via `gait()`: stride clock driven by real ground speed (no foot
   sliding), lunar lope when sprinting, tuck in the air, spring squat on landing (`land()`), hips turn when
   strafing. QA: `node qa/groundfx.mjs [quality]`, `node qa/astronaut.mjs` (model + shadow gait), hook `fx()`.
+- **Music video after Mission 9** (2026-11-04): winning Mission 9 plays `public/assets/video/the-last-orbit.mp4`
+  (46 MB web encode of the MV rendered with `?film` / `src/mtv/film.ts`; masters + song in the git-ignored `mtv/`)
+  after the m9 ending cutscene, screen `mtv` (`MusicVideo` in App.tsx), then the complete screen, which has a replay
+  button. Skip button / Enter / Space / Esc (ignored for 1 s and on key repeat); game audio is suspended (`muteGame`)
+  and the render loop idles meanwhile. QA: `node qa/musicvideo.mjs [url]`, hooks `musicVideo()`, `endMusicVideo()`.
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long

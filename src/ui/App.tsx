@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { setVolume } from '../audio/audio';
 import { settings, updateSettings, type Quality } from '../engine/settings';
 import { cardFor, CARDS } from '../game/knowledge';
@@ -56,6 +56,9 @@ export interface Actions {
   finishSettlement?: () => void;
   /** Closes the gold card shown after a secret discovery. */
   closeDiscovery?: () => void;
+  /** The music video after Mission 9 (also from the final complete screen). */
+  playMusicVideo?: () => void;
+  endMusicVideo?: () => void;
 }
 
 const CONTROLS: [string, string][] = [
@@ -1943,6 +1946,11 @@ function Complete({ actions }: { actions: Actions }) {
           </p>
         )}
         <div class="menu-buttons row">
+          {n === MISSION_COUNT && !settlement.value.failed ? (
+            <button class="btn" onClick={actions.playMusicVideo}>
+              ▶ {t('mv.replay')}
+            </button>
+          ) : null}
           <button class="btn" onClick={() => (panel.value = 'knowledge')}>
             {t('complete.review')}
           </button>
@@ -1987,6 +1995,43 @@ function Cinema({ actions }: { actions: Actions }) {
       ) : null}
       <button class="btn small cine-skip" onClick={actions.skipCutscene}>
         {t('cs.skip')} ▶▶ <small>{t('cs.skipHint')}</small>
+      </button>
+    </div>
+  );
+}
+
+/** The music video "The Last Orbit" (rendered in this game's engine), after Mission 9's ending.
+ *  The button, Enter, Space or Esc skips it; when it ends the complete screen shows. */
+function MusicVideo({ actions }: { actions: Actions }) {
+  const video = useRef<HTMLVideoElement>(null);
+  const [state, setState] = useState<'loading' | 'playing' | 'blocked'>('loading');
+  useEffect(() => {
+    const v = video.current!;
+    v.volume = Math.min(1, settings.value.volume);
+    // Browsers may refuse to start a video with sound; then the player presses Play.
+    v.play().catch(() => setState('blocked'));
+  }, []);
+  const end = () => actions.endMusicVideo?.();
+  return (
+    <div class="mtv">
+      <video
+        ref={video}
+        src="./assets/video/the-last-orbit.mp4"
+        playsInline
+        preload="auto"
+        onPlaying={() => setState('playing')}
+        onWaiting={() => setState('loading')}
+        onEnded={end}
+        onError={end}
+      />
+      {state === 'loading' ? <div class="mtv-wait">{t('mv.loading')}</div> : null}
+      {state === 'blocked' ? (
+        <button class="btn primary mtv-play" onClick={() => void video.current?.play()}>
+          ▶ {t('mv.play')}
+        </button>
+      ) : null}
+      <button class="btn small cine-skip mtv-skip" onClick={end}>
+        {t('cs.skip')} ▶▶ <small>{t('mv.skipHint')}</small>
       </button>
     </div>
   );
@@ -2088,6 +2133,7 @@ export function App({ actions }: { actions: Actions }) {
       {sc === 'paused' && !panel.value && <Paused actions={actions} />}
       {sc === 'complete' && <Complete actions={actions} />}
       {sc === 'discovery' && <DiscoveryReveal actions={actions} />}
+      {sc === 'mtv' && <MusicVideo actions={actions} />}
       {sc === 'playing' && terminal.value === 'life' && <Terminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'power' && <PowerTerminal actions={actions} />}
       {sc === 'playing' && terminal.value === 'array' && <ArrayPanel actions={actions} />}

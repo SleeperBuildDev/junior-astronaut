@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 
-export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 'paused' | 'complete' | 'discovery';
+export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 'paused' | 'complete' | 'discovery' | 'mtv';
 
 export const screen = signal<Screen>('loading');
 export const loadProgress = signal(0);
