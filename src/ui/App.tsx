@@ -1663,7 +1663,7 @@ function KnowledgeCard({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
       <CardBody id={id} />
       <button class="btn small" onClick={onClose}>
-        {t('card.ok')}
+        {t('card.ok')} <kbd class="key-hint">Enter</kbd>
       </button>
     </div>
   );
@@ -2013,6 +2013,16 @@ function Cinema({ actions }: { actions: Actions }) {
 
 /** The gold card after a secret discovery's cutscene. */
 function DiscoveryReveal({ actions }: { actions: Actions }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+        e.preventDefault();
+        actions.closeDiscovery?.();
+      }
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, []);
   const id = legend.value;
   const c = id ? cardFor(id, settings.value.lang) : null;
   if (!id || !c) return null;
@@ -2030,7 +2040,7 @@ function DiscoveryReveal({ actions }: { actions: Actions }) {
         </div>
         <p class="legend-count">{t('disc.count', { n: num(found), total: num(DISCOVERIES.length) })}</p>
         <button class="btn primary" onClick={actions.closeDiscovery}>
-          {t('disc.continue')}
+          {t('disc.continue')} <kbd class="key-hint">Enter</kbd>
         </button>
       </div>
     </div>
@@ -2071,7 +2081,18 @@ export function App({ actions }: { actions: Actions }) {
   useEffect(() => {
     if (cardPopup.value) {
       const timer = setTimeout(() => (cardPopup.value = null), 14000);
-      return () => clearTimeout(timer);
+      // While you play, the mouse is captured, so Enter closes the card instead of a click.
+      const onKey = (e: KeyboardEvent) => {
+        if ((e.code === 'Enter' || e.code === 'NumpadEnter') && screen.value === 'playing' && !terminal.value) {
+          e.preventDefault();
+          cardPopup.value = null;
+        }
+      };
+      addEventListener('keydown', onKey);
+      return () => {
+        clearTimeout(timer);
+        removeEventListener('keydown', onKey);
+      };
     }
   }, [cardPopup.value]);
   if (isPhone) return <PhoneNotice />;

@@ -494,3 +494,4 @@ body.lang-my .legend-title b { font-size: 34px; line-height: 1.6; }
 .legend-title b { margin-top: 6px; }
 /* A soft dark halo behind the gold title so it reads over the bright light beam. */
 .legend-title::before { content: ''; position: absolute; inset: -30px -60px; z-index: -1; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0) 70%); }
+.key-hint { margin-left: 8px; font-size: 0.75em; opacity: 0.8; }
