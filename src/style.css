@@ -100,6 +100,9 @@ kbd {
 .airlock-panel .bar i { background: var(--cyan); }
 .airlock-panel .skip { letter-spacing: 0.04em; text-transform: none; }
 .fade-black { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 20; }
+/* Low quality only: the helmet visor rim and low-oxygen fog (Medium/High draw them in the visor shader) */
+.visor-rim { position: absolute; inset: 0; pointer-events: none; border-radius: 9% / 14%; box-shadow: inset 0 0 70px 18px rgba(0, 0, 0, 0.55), inset 0 0 6px 2px rgba(230, 180, 90, 0.08); }
+.visor-fog { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 75% 60% at 50% 38%, transparent 35%, rgba(205, 215, 225, 0.55) 80%), linear-gradient(to top, rgba(210, 218, 228, 0.6), transparent 55%); transition: opacity 0.3s; }
 .hc-rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-top: 8px; }
 .hc-rows b { font-family: var(--mono); font-weight: 400; text-align: right; }
 .hc-note { color: var(--dim); font-size: 13px; margin: 8px 0 0; }

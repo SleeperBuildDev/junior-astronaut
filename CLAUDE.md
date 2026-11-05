@@ -96,6 +96,24 @@ Done and tested (git history has one commit per milestone):
   at the exit. First entry unlocks the `airlock` card. `hollowHab()` in base.ts strips the hab GLB's internal faces (it is
   built from closed cylinders + domes) and makes it single-sided. QA: `node qa/habitat.mjs [en|my] [quality]`, hooks
   `habEnter()`, `habExit()`, `habUse(id)`, `hab()`, `skipMove()`, `pick()` (what is under the crosshair).
+- **Helmet view, your body, mirrors, camera motion** (2026-11-05): `src/engine/visor.ts` (`VisorEffect`, one
+  postprocessing pass on Medium/High, first in the bloom/tone-map pass): visor rim + edge refraction, sun glare
+  (halo, streak, veil, 5 lens-flare ghosts, visor scratches; hidden when the depth buffer at the Sun's spot isn't sky),
+  breath fog when suit O₂ < 30 %, camera motion blur while driving (reprojected with last frame's view-projection,
+  nothing within ~3 m so the rover stays sharp), radiation flashes in a solar storm outside. Low has no post: a CSS
+  `.visor-rim` + `.visor-fog` (signal `visorFx`). Depth of field (`Pipeline.setDof`) only in cutscenes, focused where
+  the shot's `camera.lookAt` aims (main wraps `camera.lookAt`), only for subjects < 20 m. `src/engine/shake.ts`
+  (`shake.add` jolts, `shake.rumble` per frame; applied before render, undone after): hard landings, rover bumps +
+  speed rumble, lander descent/touchdown (intro cutscene), storm arrival. Your body: a full `Astronaut` (`me`, scale
+  0.9 so the eyes sit in its helmet) follows you (gait), walks under the camera through the airlock (`moves.walking`),
+  sits in the rover (`sit` pose, helmet aligned to the seat camera); `firstPerson(true)` puts the helmet, backpack and
+  chest box on `MIRROR_LAYER` (2), which only the mirrors' reflection cameras and the Sun's shadow camera draw. It
+  replaced the old shadow-only body. Mirrors (three `Reflector`, rendered only while visible): a locker-door mirror in
+  HAB-1 (`interior.mirror`, shown inside) and a suit-check mirror on a stand beside the airlock
+  (`outpost.outsideMirror`, within 16 m, not on Low: a polished panel there). Stronger run sway in `player.ts`
+  (lope bounce, roll, nod, strafe/turn lean). Setting **Camera motion** Full/Reduced/Off (`settings.motion`) scales
+  sway, shake and blur. QA: `node qa/lens.mjs [quality] [url]`, hooks `lens()`, `setO2(v)`, `shake(a)`, `storm(on)`,
+  `mirrorView('inside'|'outside')`, `roverLook(yaw,pitch)`, `perfOff([...'mirror'|'visor'|'body'])`, `dofInfo()`.
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
@@ -158,7 +176,9 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 |---|---|
 | `src/main.ts` | Boot, world assembly, game loop, actions (start/resume/next/restart/toMenu/closeTerminal/skipCutscene), interaction raycast + hold-E, suit simulation, guidance (`guideTarget()`), floodlights, machine hum, QA hooks |
 | `src/engine/renderer.ts` | WebGLRenderer + quality presets (low/medium/high: pixel ratio, shadow map, terrain segments, post on/off) + postprocessing (Bloom, AgX tone mapping, Vignette, SMAA) |
-| `src/engine/settings.ts` | Persisted settings signal (sensitivity, invertY, fov, quality, volume, arrowLook, **lang**) |
+| `src/engine/settings.ts` | Persisted settings signal (sensitivity, invertY, fov, quality, volume, arrowLook, **lang**, motion) |
+| `src/engine/visor.ts` | `VisorEffect`: helmet visor, sun glare + lens flare, O₂ fog, driving motion blur, storm flashes |
+| `src/engine/shake.ts` | Camera shake (`add` jolt, `rumble` per frame, `apply` scaled by the motion setting) |
 | `src/world/heightfield.ts` | Deterministic terrain height function, craters, flattened areas, `LAYOUT` (base, lander, sensors, playRadius) |
 | `src/world/terrain.ts` | Near (800 m, physics) + far (9 km) terrain meshes; regolith shader (anti-tiling, desaturation, distance-faded normals) |
 | `src/world/sky.ts` | Stars, Milky Way, sun disc, Earth shader; `SUN_DIR`, `EARTH_DIR` (sun ≈7° high); `sunPath(k)` moves the Sun through a dark spell, `sunlight()` (main dims lights from it) |
@@ -258,6 +278,9 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 - **Blender GLBs are solid inside and double-sided**: closed cylinders leave discs inside modules. To walk into one,
   strip the inner triangles and set materials FrontSide (`hollowHab`). Raycasts hit hidden objects: filter with `shown()`.
 - `camera.matrixWorld` can be stale outside the render: call `camera.updateMatrixWorld()` before a raycast from a hook.
+- **`Reflector` mirrors render the whole scene again** while visible (onBeforeRender): keep them hidden unless you
+  can see them (`updateMirrors` in main). Their reflection cameras are cloned from the main camera on first use, so
+  enable extra layers on `mirror.getReflectionCamera(camera)` (done for `MIRROR_LAYER`).
 - Ultracode may be on, but the owner asked to keep multi-agent work to big decisions + one small
   final-check workflow per mission (Burmese review on Sonnet + one bug reviewer).
 

@@ -10,9 +10,11 @@ export interface Settings {
   volume: number;
   arrowLook: boolean;
   lang: 'en' | 'my';
+  /** Camera motion: head sway, shake and motion blur (1 full, 0.5 reduced, 0 off). */
+  motion: number;
 }
 
-const DEFAULTS: Settings = { sensitivity: 1, invertY: false, fov: 75, quality: 'medium', volume: 0.8, arrowLook: true, lang: 'en' };
+const DEFAULTS: Settings = { sensitivity: 1, invertY: false, fov: 75, quality: 'medium', volume: 0.8, arrowLook: true, lang: 'en', motion: 1 };
 const KEY = 'junior-astronaut.settings';
 
 function load(): Settings {

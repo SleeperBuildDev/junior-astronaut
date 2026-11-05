@@ -73,5 +73,7 @@ export const habInside = signal(false);
 export const airlockKpa = signal<number | null>(null);
 /** Black screen fade, 0..1 (resting in the sleep station). */
 export const fade = signal(0);
+/** Low quality only (no post-processing): the visor rim and the low-oxygen fog drawn by the UI. */
+export const visorFx = signal({ on: false, fog: 0 });
 /** HAB-1 lighting: bright day, warm evening or a dim red night light. */
 export const habLights = signal<'day' | 'evening' | 'night'>('day');

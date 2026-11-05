@@ -35,7 +35,7 @@ import { resetCrew } from './game/crew';
 import { habitat, habitatDone, resetHabitat } from './game/habitat';
 import { capacityKWh, power, powerOnline, resetPower, setArrayHealth, sunYaw } from './game/power';
 import { MISSION_COUNT, missionDone, progress } from './game/save';
-import { airlockKpa, cardPopup, clock, fade, habInside, habLights, knowledge, legend, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, unlock, warning, waypoint } from './game/state';
+import { airlockKpa, cardPopup, clock, fade, visorFx, habInside, habLights, knowledge, legend, comms, drive, fps, gameSpeed, heading, holdProgress, loadProgress, missionNumber, NORMAL_SPEED, panel, prompt, pushComm, screen, suit, terminal, unlock, warning, waypoint } from './game/state';
 import { Input } from './player/input';
 import { addCollider, createPhysics } from './player/physics';
 import { Player } from './player/player';
@@ -49,7 +49,8 @@ import { heightAt, LAYOUT } from './world/heightfield';
 import { buildInterior } from './world/interior';
 import { buildRocks } from './world/rocks';
 import { buildTrails } from './world/trails';
-import { Astronaut, SHADOW_LAYER } from './world/astronaut';
+import { Astronaut, MIRROR_LAYER, SHADOW_LAYER } from './world/astronaut';
+import { shake } from './engine/shake';
 import { buildGroundEffects } from './world/effects';
 import { buildDiscoveries } from './game/discoveries';
 import { buildSky, EARTH_DIR, SUN_DIR, sunlight, sunPath } from './world/sky';
@@ -177,6 +178,7 @@ async function boot() {
       sun.shadow.mapSize.setScalar(PRESETS[q].shadow);
       sun.shadow.map?.dispose();
       sun.shadow.map = null;
+      me.setShadows(q !== 'low');
     },
   };
   render(h(App, { actions }), document.getElementById('ui-root')!);
@@ -272,9 +274,29 @@ async function boot() {
   const astronaut = new Astronaut();
   astronaut.root.visible = false;
   scene.add(astronaut.root);
-  const bodyShadow = new Astronaut({ shadowOnly: true });
-  bodyShadow.root.visible = false;
-  scene.add(bodyShadow.root);
+  // Your own body: you see it when you look down, in mirrors, and as your long shadow. A little
+  // smaller than the cutscene astronaut so your eyes sit inside its helmet (which, with the
+  // backpack, only mirrors and the shadow camera draw).
+  const me = new Astronaut();
+  me.root.scale.setScalar(0.9);
+  me.firstPerson(true);
+  me.setShadows(settings.value.quality !== 'low');
+  me.root.visible = false;
+  scene.add(me.root);
+  sun.shadow.camera.layers.enable(MIRROR_LAYER);
+  for (const m of [interior.mirror, outpost.outsideMirror]) m.getReflectionCamera(camera).layers.enable(MIRROR_LAYER);
+  const outsideMirrorPos = outpost.outsideMirror.getWorldPosition(new THREE.Vector3());
+  // Depth of field in cutscenes focuses where the shot looks (every shot aims with lookAt).
+  const focusPoint = new THREE.Vector3();
+  let focusFrame = -1;
+  let frameNo = 0;
+  const camLookAt = camera.lookAt.bind(camera);
+  camera.lookAt = ((x: THREE.Vector3 | number, y?: number, z?: number) => {
+    if (typeof x === 'number') focusPoint.set(x, y!, z!);
+    else focusPoint.copy(x);
+    focusFrame = frameNo;
+    camLookAt(x as never, y as never, z as never);
+  }) as typeof camera.lookAt;
   const sunScale = { value: 1 };
   const discoveries = buildDiscoveries({ scene, sky: sky.group, renderer, astronaut, fx, terrainMat, sunScale, quality: () => settings.value.quality });
   scene.add(discoveries.group);
@@ -284,7 +306,10 @@ async function boot() {
   // The rover: parked by the habitat until Mission 7, then drivable.
   const rover = new Rover(RAPIER, world, outpost.rover, terrainHandle);
   const roverPark = { pos: outpost.rover.position.clone(), yaw: outpost.rover.rotation.y };
-  rover.onBump = (k) => thud(2 + k * 4);
+  rover.onBump = (k) => {
+    thud(2 + k * 4);
+    shake.add(0.12 + k * 0.3);
+  };
   // HAB-2 (none before Mission 4, packed, then inflated) and the greenhouse (once assembled).
   const setHab2Collider = dynamicCollider();
   const setGhCollider = dynamicCollider();
@@ -296,7 +321,8 @@ async function boot() {
   player.yaw = startYaw;
   player.onLand = (fall) => {
     thud(fall);
-    bodyShadow.land(fall);
+    me.land(fall);
+    shake.add(THREE.MathUtils.clamp((fall - 1.2) * 0.13, 0, 0.45));
     if (!habInside.value) fx.land(player!.feet, fall);
   };
   // Camera moves (rover seat, airlock, interior stations) and the airlock's outer hatch.
@@ -578,6 +604,7 @@ async function boot() {
       player!.pitch = 0;
       unlock('airlock');
     });
+    moves.walking = true; // your body walks in under the camera
   }
   function exitHabitat() {
     player!.setEnabled(false);
@@ -636,6 +663,7 @@ async function boot() {
       player!.teleport(outFeet, Math.PI / 2);
       player!.pitch = 0;
     });
+    moves.walking = true; // your body walks out under the camera
   }
   /** Mission reset or blackout: you are simply outside again. */
   function leaveHabitatNow() {
@@ -1093,20 +1121,9 @@ async function boot() {
       }
       printFeet.copy(f);
     }
-    // Your own body's long shadow on the ground (Medium and High).
-    const showBody = !!player && screen.value !== 'cutscene' && !rover.driving && !moves.active && !habInside.value && settings.value.quality !== 'low';
-    bodyShadow.root.visible = showBody;
-    if (showBody && dt > 0) {
-      // Real ground speed (smoothed), so the stride matches how far you actually moved.
-      const f = player!.feet;
-      const dx = f.x - lastFeet.x;
-      const dz = f.z - lastFeet.z;
-      if (Math.hypot(dx, dz) > 3) bodyVel.set(0, 0, 0); // teleported
-      else bodyVel.lerp(new THREE.Vector3(dx / dt, 0, dz / dt), 1 - Math.exp(-12 * dt));
-      lastFeet.copy(f);
-      bodyShadow.root.position.copy(f);
-      bodyShadow.gait(dt, screen.value === 'playing' ? bodyVel : bodyVel.set(0, 0, 0), player!.yaw, player!.grounded, player!.sprinting);
-    }
+    updateBody(dt);
+    updateMirrors();
+    updateLens(dt, t / 1000);
     const now = t / 1000;
     for (const b of outpost.blinkers) b.mesh.visible = (now + b.phase) % b.period < b.period * 0.5;
 
@@ -1128,9 +1145,136 @@ async function boot() {
       fpsAcc = fpsFrames = 0;
     }
     renderer.info.reset();
+    // Camera shake for this frame only: the camera goes back where the game put it after drawing.
+    shakePos.copy(camera.position);
+    shakeQuat.copy(camera.quaternion);
+    if (screen.value === 'playing' || screen.value === 'cutscene') shake.apply(camera, dt, settings.value.motion ?? 1);
+    else shake.reset();
     pipeline.render(dt);
+    camera.position.copy(shakePos);
+    camera.quaternion.copy(shakeQuat);
+    frameNo++;
   };
   renderer.setAnimationLoop(FILM ? null : loop);
+
+  // ---------- your body, mirrors, the helmet's view ----------
+  const shakePos = new THREE.Vector3();
+  const shakeQuat = new THREE.Quaternion();
+  const tmpV = new THREE.Vector3();
+  const tmpE = new THREE.Euler(0, 0, 0, 'YXZ');
+  const SEAT_TURN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+  let bodyMode: 'hidden' | 'walk' | 'move' | 'seat' = 'hidden';
+  let perfOff = new Set<string>(); // QA: effects switched off for measuring
+
+  /** Your body under the camera: walking, walking through the airlock, or sitting in the rover. */
+  function updateBody(dt: number) {
+    const firstPerson = !!player && (screen.value === 'playing' || screen.value === 'paused');
+    let mode: typeof bodyMode = 'hidden';
+    if (firstPerson) mode = moves.active ? (moves.walking ? 'move' : 'hidden') : rover.driving ? 'seat' : 'walk';
+    const was = bodyMode;
+    bodyMode = mode;
+    me.root.visible = mode !== 'hidden' && !perfOff.has('body');
+    if (mode === 'hidden' || dt <= 0) return;
+    if (mode === 'seat') {
+      if (was !== 'seat') me.pose('sit', 0);
+      me.update(dt);
+      me.root.quaternion.copy(rover.obj.quaternion).multiply(SEAT_TURN);
+      // Put the helmet where the camera is (eyes a little in front of the helmet's centre).
+      me.root.updateMatrixWorld(true);
+      me.visorWorld(tmpV);
+      const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(rover.obj.quaternion);
+      me.root.position.add(camera.position.clone().addScaledVector(fwd, -0.09).sub(tmpV));
+      return;
+    }
+    let yaw: number;
+    const feet = new THREE.Vector3();
+    if (mode === 'walk') {
+      feet.copy(player!.feet);
+      yaw = player!.yaw;
+    } else {
+      feet.copy(camera.position).setY(camera.position.y - EYE_HEIGHT);
+      yaw = tmpE.setFromQuaternion(camera.quaternion, 'YXZ').y;
+    }
+    if (was !== mode) {
+      me.resetGait();
+      lastFeet.copy(feet);
+      bodyVel.set(0, 0, 0);
+      me.root.rotation.set(0, 0, 0);
+    }
+    // Real ground speed (smoothed), so the stride matches how far you actually moved.
+    const dx = feet.x - lastFeet.x;
+    const dz = feet.z - lastFeet.z;
+    if (Math.hypot(dx, dz) > 3) bodyVel.set(0, 0, 0); // teleported
+    else bodyVel.lerp(tmpV.set(dx / dt, 0, dz / dt), 1 - Math.exp(-12 * dt));
+    lastFeet.copy(feet);
+    // A step behind the eyes, so looking down shows your chest, arms and boots, not the inside of the suit.
+    me.root.position.copy(feet).add(tmpV.set(Math.sin(yaw) * 0.28, 0, Math.cos(yaw) * 0.28));
+    const moving = screen.value === 'playing';
+    me.gait(dt, moving ? bodyVel : tmpV.set(0, 0, 0), yaw, mode === 'move' || player!.grounded, mode === 'walk' && player!.sprinting);
+  }
+
+  /** Mirrors render the scene again, so each is on only when you can see it. */
+  function updateMirrors() {
+    const live = screen.value === 'playing' || screen.value === 'paused';
+    interior.mirror.visible = live && habInside.value && !perfOff.has('mirror');
+    outpost.outsideMirror.visible = live && !habInside.value && settings.value.quality !== 'low' && camera.position.distanceTo(outsideMirrorPos) < 16 && !perfOff.has('mirror');
+  }
+
+  let fogAmt = 0;
+  let blurAmt = 0;
+  let lastWeather = rad.value.weather;
+  const camFwd = new THREE.Vector3();
+  const sunNdc = new THREE.Vector3();
+  let cssAcc = 0;
+  /** The helmet's view: visor, sun glare, fog when oxygen runs low, blur while driving, storm flashes; DOF in cutscenes. */
+  function updateLens(dt: number, now: number) {
+    const firstPerson = !!player && (screen.value === 'playing' || screen.value === 'paused');
+    const motion = settings.value.motion ?? 1;
+    const o2 = suit.value.o2;
+    const fogTarget = firstPerson ? 1 - THREE.MathUtils.smoothstep(o2, 6, 30) : 0;
+    fogAmt += (fogTarget - fogAmt) * Math.min(1, dt * (fogTarget > fogAmt ? 0.8 : 2.5)); // clears faster than it forms
+    const blurTarget = firstPerson && rover.driving ? Math.min(1, Math.abs(rover.speed) / 3) * 0.8 * motion : 0;
+    blurAmt += (blurTarget - blurAmt) * Math.min(1, dt * 3);
+    if (rover.driving && screen.value === 'playing') shake.rumble((Math.abs(rover.speed) / 5.5) * 0.22);
+    // A solar storm arriving: a jolt, then radiation flashes in your eyes while you're out in it.
+    const weather = rad.value.weather;
+    if (weather !== lastWeather && weather === 'storm' && screen.value === 'playing') shake.add(0.35);
+    lastWeather = weather;
+    const storm = firstPerson && weather === 'storm' && !rad.value.sheltered && !habInside.value ? 1 : 0;
+    // Low has no post-processing: the visor rim and the fog are drawn in the UI instead.
+    cssAcc += dt;
+    if (cssAcc > 0.1) {
+      cssAcc = 0;
+      const on = firstPerson && !pipeline.visor;
+      const fog = Math.round(fogAmt * 20) / 20;
+      if (visorFx.value.on !== on || visorFx.value.fog !== fog) visorFx.value = { on, fog };
+    }
+    const v = pipeline.visor;
+    if (!v) return;
+    if (perfOff.has('visor')) {
+      for (const k of ['uVisor', 'uFog', 'uBlur', 'uSpark', 'uSunAmt'] as const) v.set(k, 0);
+      return;
+    }
+    v.set('uVisor', firstPerson ? 1 : 0);
+    v.set('uFog', fogAmt);
+    v.set('uBreath', 0.5 + 0.5 * Math.sin((now * Math.PI * 2) / (o2 < 20 ? 2.2 : 3.6)));
+    v.set('uBlur', blurAmt);
+    v.set('uSpark', storm);
+    const day = sunlight();
+    v.set('uDay', day);
+    camera.getWorldDirection(camFwd);
+    const facing = camFwd.dot(SUN_DIR);
+    sunNdc.copy(camera.position).addScaledVector(SUN_DIR, 1000).project(camera);
+    v.setSun(sunNdc.x * 0.5 + 0.5, sunNdc.y * 0.5 + 0.5, THREE.MathUtils.smoothstep(facing, 0.75, 1));
+    v.set('uSunAmt', THREE.MathUtils.smoothstep(facing, 0.35, 0.8) * day * sunScale.value);
+    // Depth of field: only in cutscenes, sharp where the shot looks.
+    if (screen.value === 'cutscene') {
+      const fresh = focusFrame >= frameNo - 1;
+      // Close subjects only: a wide landscape stays sharp (and the stars stay points).
+      const d = fresh ? camera.position.distanceTo(focusPoint) : 99;
+      pipeline.setDof(d < 20, d, Math.max(1.2, d * 0.55), 2.0);
+    } else pipeline.setDof(false);
+  }
 
   function simulateSuit(dt: number) {
     const s = { ...suit.value };
@@ -1337,6 +1481,41 @@ async function boot() {
         },
         discoveries: () => discoveries.list(),
         fx: () => fx.counts(),
+        /** The helmet view, your body, mirrors and shake (qa/lens.mjs). */
+        lens: () => ({
+          sunYaw: Math.atan2(-SUN_DIR.x, -SUN_DIR.z),
+          sunPitch: Math.asin(SUN_DIR.y),
+          body: bodyMode,
+          visor: pipeline.visor ? Object.fromEntries([...pipeline.visor.uniforms].filter(([, u]) => typeof u.value === 'number').map(([k, u]) => [k, u.value])) : null,
+          mirrors: { inside: interior.mirror.visible, outside: outpost.outsideMirror.visible },
+          shake: shake.level,
+          css: visorFx.value,
+        }),
+        setO2: (v: number) => (suit.value = { ...suit.value, o2: v }),
+        /** Switch new effects off to measure their cost: 'mirror', 'visor', 'body'. */
+        perfOff: (what: string[]) => (perfOff = new Set(what)),
+        dofInfo: () => pipeline.dofState(),
+        roverLook: (yaw: number, pitch: number) => {
+          rover.lookYaw = yaw;
+          rover.lookPitch = pitch;
+        },
+        shake: (a: number) => shake.add(a),
+        storm: (on: boolean) => (rad.value = { ...rad.value, weather: on ? 'storm' : 'quiet', sheltered: false }),
+        /** Stand 2.2 m in front of a mirror, facing it. */
+        mirrorView: (which: 'inside' | 'outside') => {
+          if (which === 'outside') {
+            const m = outpost.outsideMirror;
+            const yaw = m.parent!.rotation.y;
+            const p = outsideMirrorPos.clone().add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(2.4));
+            player!.teleport(new THREE.Vector3(p.x, heightAt(p.x, p.z), p.z), yaw);
+          } else {
+            habInside.value = true;
+            interior.setLightsOn(true);
+            const p = interior.mirror.position;
+            player!.teleport(new THREE.Vector3(p.x - 0.1, interior.floor, p.z + 1.5), 0);
+          }
+          player!.pitch = -0.08;
+        },
 
         /** Stand next to a secret find and press E on it. */
         discover: (id: string) => {

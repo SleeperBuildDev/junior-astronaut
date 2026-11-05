@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
 import type { ColliderSpec, Interactable } from './base';
 
 // The inside of HAB-1, built inside the real module (so its windows look out at the real base),
@@ -37,6 +38,8 @@ export interface Interior {
   setMode: (mode: HabLights) => void;
   /** Spin the bike's pedals for a few seconds. */
   pedal: (secs: number) => void;
+  /** The suit-check mirror (shown only while you are inside: it renders the scene again). */
+  mirror: Reflector;
   update: (dt: number, status: { o2: number; power: number }) => void;
 }
 
@@ -280,6 +283,20 @@ export function buildInterior(base: THREE.Vector3): Interior {
     add(new THREE.BoxGeometry(0.04, 0.22, 0.03), mat.dark, -3.4 + dx + (dx < 0 ? 0.2 : -0.2), 1.0, -(halfW - 0.52));
   }
   box(-3.4, 0.875, -(halfW - 0.25), 0.55, 0.875, 0.25);
+  // A full-length suit-check mirror on the right locker door, across from the suit station:
+  // crews check their suit (hoses, straps, the helmet seal) before going out.
+  const mirrorFrame = rbox(0.37, 1.56, 0.02, mat.alu, -3.06, 0.95, -(halfW - 0.515), 0.01);
+  mirrorFrame.castShadow = false;
+  const mirror = new Reflector(new THREE.PlaneGeometry(0.32, 1.5), {
+    textureWidth: Math.round(Math.min(innerWidth, 1600) * 0.6),
+    textureHeight: Math.round(Math.min(innerHeight, 900) * 0.6),
+    color: 0xd8dde2,
+    clipBias: 0.003,
+    multisample: 0, // no MSAA: the mirror is small and this keeps it cheap
+  });
+  mirror.position.copy(at(-3.06, 0.95, -(halfW - 0.528)));
+  mirror.visible = false;
+  group.add(mirror);
 
   // ---------- galley (left, under the first porthole) ----------
   rbox(1.6, 0.9, 0.6, mat.white, -2.1, 0.45, -(halfW - 0.32));
@@ -507,6 +524,7 @@ export function buildInterior(base: THREE.Vector3): Interior {
       mat.strip.emissiveIntensity = 1.1 * m.k;
     },
     pedal: (secs) => (pedal = secs),
+    mirror,
     update: (dt, status) => {
       innerOpen += THREE.MathUtils.clamp(innerTarget - innerOpen, -dt / 0.8, dt / 0.8);
       const k = innerOpen * innerOpen * (3 - 2 * innerOpen);

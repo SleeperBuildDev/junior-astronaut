@@ -5,6 +5,7 @@ import { statusMaterials } from '../world/base';
 import { heightAt, LAYOUT, mulberry32 } from '../world/heightfield';
 import { EARTH_DIR, SUN_DIR } from '../world/sky';
 import { cinema } from './state';
+import { shake } from '../engine/shake';
 
 // In-engine cutscenes: scripted camera moves over the live scene, with narration,
 // subtitles and a few animated props (the lander's descent and its dust).
@@ -209,6 +210,8 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
         lander.position.y = landerAlt(k);
         flame.scale.setScalar(0.8 + Math.sin(k * 90) * 0.08);
         const alt = lander.position.y - restY;
+        // The engine's rumble grows as it comes down (shaken through the ground, not the air: there is none).
+        if (alt < 30) shake.rumble((1 - alt / 30) * 0.32);
         if (alt < 14) {
           if (!dust.points.visible) dust.reset(pad);
           dust.update(dt, 1 - alt / 14);
@@ -227,6 +230,7 @@ export function buildCutscenes(scene: THREE.Scene, outpost: Outpost, start: { po
         lander.position.y = restY;
         flame.visible = false;
         sfx('clunk');
+        shake.add(0.65); // touchdown
       },
       update: (_k, dt) => dust.update(dt, 0),
       cam: orbit(pad, 16, 3, 0.9, 1.9, 2.5),

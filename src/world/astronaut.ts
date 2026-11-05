@@ -10,8 +10,13 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 
 /** Layer for meshes that should cast shadows but never be drawn (enable it on the shadow camera). */
 export const SHADOW_LAYER = 1;
+/**
+ * Layer for the parts of your own body the first-person camera must not draw (it sits inside
+ * the helmet): mirrors and the Sun's shadow camera still see them.
+ */
+export const MIRROR_LAYER = 2;
 
-export type Pose = 'stand' | 'walk' | 'kneel' | 'point' | 'swingBack' | 'swingHit' | 'hold' | 'look';
+export type Pose = 'stand' | 'walk' | 'kneel' | 'point' | 'swingBack' | 'swingHit' | 'hold' | 'look' | 'sit';
 
 interface Joints {
   root: number; // body height offset
@@ -46,6 +51,8 @@ const POSES: Record<Pose, Partial<Joints>> = {
   swingHit: { root: -0.06, lean: 0.3, head: 0.3, lHip: -0.12, lKnee: 0.2, rHip: -0.12, rKnee: 0.3, twist: -1.0, lSh: -1.3, rSh: -1.3, lElb: -0.05, rElb: -0.1, lOut: -0.3, rOut: -0.3 },
   // Arms out in front at shoulder height: hammer in the right hand, feather in the left.
   hold: { head: 0.15, lSh: -1.45, rSh: -1.45, lElb: -0.15, rElb: -0.15, lOut: 0.25, rOut: 0.25 },
+  // In the rover seat: thighs level, shins down, hands forward on the hand controller.
+  sit: { root: -0.43, lean: -0.08, lHip: -1.5, rHip: -1.5, lKnee: 1.4, rKnee: 1.4, lAnkle: 0.05, rAnkle: 0.05, lSh: -0.75, rSh: -0.75, lElb: -0.85, rElb: -0.85, lOut: 0.12, rOut: 0.12 },
 };
 
 const KEYS = Object.keys(STAND) as (keyof Joints)[];
@@ -123,6 +130,8 @@ export class Astronaut {
   private speed = 2;
   private walkPhase = 0;
   readonly materials: THREE.Material[] = [];
+  /** The chest control box and its hoses (they'd hide your legs when you look down). */
+  private chestGear: THREE.Object3D[] = [];
 
   /** shadowOnly: invisible to the camera but still casts a shadow (the player's own body), fewer small parts. */
   constructor(opts: { shadowOnly?: boolean } = {}) {
@@ -182,6 +191,7 @@ export class Astronaut {
     fine(new THREE.CylinderGeometry(0.006, 0.008, 0.28, 6), grey, this.torso, 0.17, 0.86, -0.3);
     // Chest display-and-control box, with two umbilical hoses to the backpack.
     const dcm = fine(new RoundedBoxGeometry(0.28, 0.15, 0.11, 3, 0.025), grey, this.torso, 0, 0.24, 0.22);
+    this.chestGear.push(dcm);
     dcm.rotation.x = -0.2;
     fine(new THREE.CylinderGeometry(0.018, 0.018, 0.025, 12), red, dcm, -0.08, 0.02, 0.06).rotation.x = Math.PI / 2;
     fine(new THREE.CylinderGeometry(0.018, 0.018, 0.025, 12), accent, dcm, -0.03, 0.02, 0.06).rotation.x = Math.PI / 2;
@@ -191,7 +201,7 @@ export class Astronaut {
       [1, red],
     ] as const) {
       const hose = new THREE.CatmullRomCurve3([new THREE.Vector3(s * 0.09, 0.2, 0.25), new THREE.Vector3(s * 0.22, 0.1, 0.17), new THREE.Vector3(s * 0.28, 0.2, -0.05), new THREE.Vector3(s * 0.25, 0.35, -0.16)]);
-      fine(new THREE.TubeGeometry(hose, 16, 0.018, 6), col, this.torso);
+      this.chestGear.push(fine(new THREE.TubeGeometry(hose, 16, 0.018, 6), col, this.torso));
     }
     // Mission patch on the left shoulder and a name tag on the chest.
     fine(new THREE.CylinderGeometry(0.05, 0.05, 0.01, 20), accent, this.torso, 0.21, 0.4, 0.12).rotation.set(Math.PI / 2 - 0.4, 0, 0.7);
@@ -437,6 +447,24 @@ export class Astronaut {
     this.shoulders.r.rotation.set(j.rSh, 0, -j.rOut);
     this.elbows.l.rotation.x = j.lElb;
     this.elbows.r.rotation.x = j.rElb;
+  }
+
+  /**
+   * Your own body seen from inside the helmet: the helmet and the backpack go on MIRROR_LAYER
+   * (drawn only by mirrors and the shadow camera), the rest stays visible when you look down.
+   */
+  firstPerson(on: boolean) {
+    const layer = on ? MIRROR_LAYER : 0;
+    this.helmet.traverse((o) => o.layers.set(layer));
+    for (const c of this.torso.children) if (c.position.z < -0.2 || c.position.y > 0.6) c.layers.set(layer);
+    for (const c of this.chestGear) c.traverse((o) => o.layers.set(layer));
+  }
+
+  /** Turns shadow casting on or off for the whole body. */
+  setShadows(on: boolean) {
+    this.root.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && o !== this.visor) o.castShadow = on;
+    });
   }
 
   /** World position of the visor (for the cube camera and close-ups). */

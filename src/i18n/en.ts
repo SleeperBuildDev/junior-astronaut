@@ -82,6 +82,11 @@ export const en: Record<string, string> = {
   'set.q.high': 'High',
   'set.qualityHint': 'Use Low on older laptops. Terrain detail changes after a restart.',
   'set.fullscreen': 'Toggle fullscreen',
+  'set.motion': 'Camera motion',
+  'set.motion.10': 'Full',
+  'set.motion.5': 'Reduced',
+  'set.motion.0': 'Off',
+  'set.motionHint': 'Head sway when running, camera shake and motion blur. Turn it down if moving views make you feel sick.',
 
   'kc.locked': 'Locked',
   'kc.empty': 'Explore and complete objectives to unlock science facts.',

@@ -47,8 +47,11 @@ export class Moves {
   active = false;
   /** False for moves that must not be skipped (e.g. a few seconds of exercise are fine to skip, a door is not). */
   skippable = true;
+  /** True for a move that is a walk (the airlock): your body walks along under the camera. */
+  walking = false;
 
-  play(steps: Step[], cam: THREE.Camera, done?: () => void, skippable = true) {
+  play(steps: Step[], cam: THREE.Camera, done?: () => void, skippable = true, walking = false) {
+    this.walking = walking;
     this.steps = steps;
     this.i = 0;
     this.t = 0;

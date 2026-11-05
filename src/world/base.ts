@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
 import { heightAt, LAYOUT, padHeight } from './heightfield';
 import { EARTH_DIR, SUN_DIR } from './sky';
 
@@ -31,6 +32,8 @@ export interface Outpost {
   airlockLight: THREE.Mesh;
   /** The outer hatch's hinge (rotation.y opens it). */
   airlockHatch: THREE.Object3D;
+  /** The suit-check mirror beside the airlock (main shows it only when you are close). */
+  outsideMirror: Reflector;
   /** HAB-1's window glass. */
   habGlass: THREE.MeshStandardMaterial | null;
   arrays: VsatRig[];
@@ -716,6 +719,35 @@ export function buildOutpost(models: OutpostModels): Outpost {
   colliders.push({ kind: 'box', center: new THREE.Vector3(bx - 6.0, by + 2.1, bz), half: new THREE.Vector3(1.3, 1.3, 1.3) });
   blinkers.push({ mesh: lock.light, period: 1.2, phase: 0 });
   interactables.push({ id: 'airlock', object: lock.hatch, label: () => 'p.airlock' });
+
+  // Suit-check mirror on a stand beside the airlock, angled at the path to the door: a last
+  // look at hoses, straps and the helmet before going out (and you can see yourself in it).
+  const mirrorStand = new THREE.Group();
+  const mx = bx - 8.0;
+  const mz = bz + 2.3;
+  mirrorStand.position.set(mx, by, mz);
+  mirrorStand.rotation.y = Math.atan2(-1.8, -2.5);
+  group.add(mirrorStand);
+  for (const s of [-1, 1]) mesh(new THREE.CylinderGeometry(0.035, 0.04, 2.1, 10), mats.alu, mirrorStand, [s * 0.62, 1.05, -0.04]);
+  mesh(new THREE.BoxGeometry(1.5, 0.05, 0.42), mats.dark, mirrorStand, [0, 0.025, -0.04]);
+  mesh(new RoundedBoxGeometry(1.22, 1.82, 0.06, 2, 0.02), mats.alu, mirrorStand, [0, 1.12, -0.04]);
+  mesh(new THREE.BoxGeometry(0.9, 0.12, 0.012), mats.hazard, mirrorStand, [0, 2.1, -0.005]);
+  // Polished steel behind the mirror: what you see on Low (no reflection pass there).
+  const mirrorFallback = mesh(new THREE.PlaneGeometry(1.1, 1.7), new THREE.MeshStandardMaterial({ color: 0xc9ced4, roughness: 0.12, metalness: 1 }), mirrorStand, [0, 1.12, -0.008]);
+  mirrorFallback.castShadow = false;
+  const outsideMirror = new Reflector(new THREE.PlaneGeometry(1.1, 1.7), {
+    textureWidth: Math.round(Math.min(innerWidth, 1600) * 0.5),
+    textureHeight: Math.round(Math.min(innerHeight, 900) * 0.5),
+    color: 0xc4c9cf,
+    clipBias: 0.003,
+    multisample: 0,
+  });
+  outsideMirror.position.set(0, 1.12, -0.004);
+  mirrorStand.add(outsideMirror);
+  {
+    const c = new THREE.Vector3(mx, by + 1.1, mz);
+    colliders.push({ kind: 'box', center: c, half: new THREE.Vector3(0.68, 1.1, 0.12), quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), mirrorStand.rotation.y) });
+  }
 
   // Regolith berm: a radiation-shielding mound of piled-up regolith on the habitat's north side.
   const berm = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 3.2, 2.6, 24, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x77736c, roughness: 1 }));
@@ -1420,6 +1452,7 @@ export function buildOutpost(models: OutpostModels): Outpost {
     lander: landerObj,
     airlockLight: lock.light,
     airlockHatch: lock.hinge,
+    outsideMirror,
     habGlass,
     blinkers,
     sensorLights,

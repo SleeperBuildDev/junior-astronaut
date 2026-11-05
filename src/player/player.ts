@@ -32,6 +32,9 @@ export class Player {
   private bobPhase = 0;
   private landDip = 0;
   private landVel = 0;
+  private run = 0;
+  private lean = 0;
+  private lastYaw = 0;
   stats = { distance: 0, jumps: 0 };
   onLand: (fall: number) => void = () => {};
   /** Called once per footfall while walking, with 0..1 strength. */
@@ -185,17 +188,31 @@ export class Player {
       // One footfall each time the head bob passes its lowest point.
       if (Math.floor(this.bobPhase / Math.PI) !== before) this.onStep(Math.min(1, 0.5 + speed / 8));
     }
-    const bobAmt = this.grounded ? Math.min(speed / SPRINT, 1) : 0;
+    const motion = settings.value.motion ?? 1;
+    const bobAmt = (this.grounded ? Math.min(speed / SPRINT, 1) : 0) * motion;
+    // Running swings the head much more than walking: the lunar lope bounds you up and down
+    // and rocks the heavy suit from side to side.
+    const runTarget = this.grounded && this.sprinting && speed > 2.6 ? 1 : 0;
+    this.run += (runTarget - this.run) * Math.min(1, dt * 4);
+    // Strafing and turning lean the view a little (the body leans into the move).
+    const fwdX = -Math.sin(this.yaw);
+    const fwdZ = -Math.cos(this.yaw);
+    const side = this.vel.x * -fwdZ + this.vel.z * fwdX;
+    const turn = THREE.MathUtils.clamp((this.yaw - this.lastYaw) / Math.max(dt, 1e-3), -6, 6);
+    this.lastYaw = this.yaw;
+    const leanTarget = (-side * 0.006 - turn * 0.004 * Math.min(1, speed / WALK)) * motion;
+    this.lean += (leanTarget - this.lean) * Math.min(1, dt * 5);
     // A gentle spring for the landing dip: the suit's weight settling.
     this.landVel += (-this.landDip * 40 - this.landVel * 9) * dt;
     this.landDip += this.landVel * dt;
+    const r = this.run;
+    const sway = Math.sin(this.bobPhase) * THREE.MathUtils.lerp(0.025, 0.07, r) * bobAmt;
+    const rise = Math.abs(Math.sin(this.bobPhase)) * THREE.MathUtils.lerp(0.045, 0.12, r) * bobAmt;
+    const roll = Math.sin(this.bobPhase) * THREE.MathUtils.lerp(0.006, 0.028, r) * bobAmt;
+    const nod = Math.sin(this.bobPhase * 2 + 0.6) * 0.016 * r * bobAmt;
     const p = this.position;
-    this.camera.position.set(
-      p.x + Math.cos(this.yaw) * Math.sin(this.bobPhase) * 0.025 * bobAmt,
-      p.y + EYE + Math.abs(Math.sin(this.bobPhase)) * 0.045 * bobAmt + this.landDip * 0.25,
-      p.z - Math.sin(this.yaw) * Math.sin(this.bobPhase) * 0.025 * bobAmt,
-    );
-    this.camera.rotation.set(this.pitch, this.yaw, Math.sin(this.bobPhase) * 0.006 * bobAmt, 'YXZ');
+    this.camera.position.set(p.x + Math.cos(this.yaw) * sway, p.y + EYE + rise + this.landDip * 0.25 * Math.max(0.3, motion), p.z - Math.sin(this.yaw) * sway);
+    this.camera.rotation.set(this.pitch + nod + this.landDip * 0.05 * motion, this.yaw, roll + this.lean, 'YXZ');
     const fov = settings.value.fov + (this.sprinting ? 4 : 0);
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 6);

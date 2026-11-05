@@ -22,6 +22,7 @@ import {
   drive,
   airlockKpa,
   fade,
+  visorFx,
   habInside,
   habLights,
   comms,
@@ -1796,6 +1797,17 @@ function SettingsPanel({ actions }: { actions: Actions }) {
         </div>
         <small>{t('set.qualityHint')}</small>
       </div>
+      <div class="quality">
+        {t('set.motion')}
+        <div class="seg">
+          {([1, 0.5, 0] as const).map((m) => (
+            <button class={(s.motion ?? 1) === m ? 'on' : ''} onClick={() => updateSettings({ motion: m })}>
+              {t('set.motion.' + m * 10)}
+            </button>
+          ))}
+        </div>
+        <small>{t('set.motionHint')}</small>
+      </div>
       <button class="btn small" onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())}>
         {t('set.fullscreen')}
       </button>
@@ -2247,6 +2259,12 @@ export function App({ actions }: { actions: Actions }) {
   const sc = screen.value;
   return (
     <>
+      {visorFx.value.on && (
+        <>
+          <div class="visor-rim" />
+          {visorFx.value.fog > 0 && <div class="visor-fog" style={{ opacity: visorFx.value.fog }} />}
+        </>
+      )}
       {(sc === 'playing' || sc === 'paused') && <Hud />}
       {sc === 'loading' && <Loading />}
       {sc === 'cutscene' && <Cinema actions={actions} />}
