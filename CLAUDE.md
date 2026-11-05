@@ -114,6 +114,20 @@ Done and tested (git history has one commit per milestone):
   (lope bounce, roll, nod, strafe/turn lean). Setting **Camera motion** Full/Reduced/Off (`settings.motion`) scales
   sway, shake and blur. QA: `node qa/lens.mjs [quality] [url]`, hooks `lens()`, `setO2(v)`, `shake(a)`, `storm(on)`,
   `mirrorView('inside'|'outside')`, `roverLook(yaw,pitch)`, `perfOff([...'mirror'|'visor'|'body'])`, `dofInfo()`.
+- **Smoother frames, same picture** (2026-11-05): the Sun's shadow map is cached (`renderer.shadowMap.autoUpdate =
+  false`; `scene.onBeforeRender` → `shadowsChanged()` in main.ts compares every visible caster with where it was at
+  the last redraw: half a texel of movement, or a size-scaled turn, forces a redraw; so does a caster appearing or
+  vanishing, or the Sun/shadow box moving). The shadow box follows the camera in whole texels (`snapToShadowTexel`),
+  which also stops shadow crawl. Blinker lamps cast no shadow (tiny; their blinking would force redraws); pump rotors are
+  `userData.shadowLazy`. The near terrain is 8x8 tiles sharing one vertex buffer and the rock scatter is grouped into
+  4x4 areas, so the camera and the shadow box only draw what they can see; HAB-1's interior is hidden unless you are in
+  it, in a move, or within 16 m. Result on the UHD 770 (High): standing still ~25 → 17 ms GPU; vsync High median 60 fps
+  (was 30), Medium steady 60. Image diff vs before: only run-to-run animation differences. Tools:
+  `node qa/profile.mjs [quality]` (frame times, GPU ms via `gpuTime(n)`, draw calls, top JS functions),
+  `node qa/compare.mjs <tag> [quality]` (fixed views without UI for before/after diffs), hooks `perfOff(['shadowCache'|
+  'interiorCull'|'mirror'|'visor'|'body'])`, `shadowMovers(ms)` (redraws + which casters caused them), `casters()`,
+  `bypassPost(on)`, `postDebug({noVisor,noBloom,noSmaa})`, `cast(name,on)`, `shadowSize(n)`. GPU cost on High before
+  this: post 7.5 ms (SMAA 3.6, bloom 1.8), shadow pass ~7, terrain ~5, rocks ~2.
 - **Mission registry + save**: missions run from `registry` in main.ts; progress (highest mission +
   cards) saved in localStorage; main menu shows Continue + Mission select once Mission 2 is unlocked.
 - World: procedural crater terrain + Poly Haven Moon textures/rocks, low south-pole sun with long
@@ -281,6 +295,9 @@ Orbitron, Noto Sans Myanmar). Everything is free/open-source; the owner wants **
 - **`Reflector` mirrors render the whole scene again** while visible (onBeforeRender): keep them hidden unless you
   can see them (`updateMirrors` in main). Their reflection cameras are cloned from the main camera on first use, so
   enable extra layers on `mirror.getReflectionCamera(camera)` (done for `MIRROR_LAYER`).
+- **Anything that moves every frame and casts a shadow defeats the shadow cache** (the redraw is the GPU's biggest
+  single cost after post). New animated props: give them `userData.shadowLazy = true` if their shadow can't be seen
+  (inside a housing), or keep them still when idle. Check with `__qa.shadowMovers()` (redraws should be ~0 standing).
 - Ultracode may be on, but the owner asked to keep multi-agent work to big decisions + one small
   final-check workflow per mission (Burmese review on Sonnet + one bug reviewer).
 

@@ -43,6 +43,10 @@ export class Pipeline {
   visor: VisorEffect | null = null;
   /** Depth of field for cutscenes (off in play). */
   dof: DepthOfFieldEffect | null = null;
+  /** QA: leave single post effects out (to measure their cost). */
+  static debug: { noVisor?: boolean; noBloom?: boolean; noSmaa?: boolean } = {};
+  /** QA: draw straight to the screen, skipping post-processing (to measure its cost). */
+  bypass = false;
 
   constructor(
     readonly renderer: THREE.WebGLRenderer,
@@ -67,16 +71,15 @@ export class Pipeline {
       this.dofPass.enabled = false;
       composer.addPass(this.dofPass);
       this.visor = new VisorEffect();
-      composer.addPass(
-        new EffectPass(
-          this.camera,
-          this.visor,
-          new BloomEffect({ mipmapBlur: true, luminanceThreshold: 1.1, luminanceSmoothing: 0.2, intensity: 0.55, radius: 0.6 }),
-          new ToneMappingEffect({ mode: ToneMappingMode.AGX }),
-          new VignetteEffect({ offset: 0.32, darkness: 0.55 }),
-        ),
-      );
-      composer.addPass(new EffectPass(this.camera, new SMAAEffect()));
+      const dbg = Pipeline.debug;
+      const effects = [
+        ...(dbg.noVisor ? [] : [this.visor]),
+        ...(dbg.noBloom ? [] : [new BloomEffect({ mipmapBlur: true, luminanceThreshold: 1.1, luminanceSmoothing: 0.2, intensity: 0.55, radius: 0.6 })]),
+        new ToneMappingEffect({ mode: ToneMappingMode.AGX }),
+        new VignetteEffect({ offset: 0.32, darkness: 0.55 }),
+      ];
+      composer.addPass(new EffectPass(this.camera, ...effects));
+      if (!dbg.noSmaa) composer.addPass(new EffectPass(this.camera, new SMAAEffect()));
       this.composer = composer;
     } else {
       this.renderer.toneMapping = THREE.AgXToneMapping;
@@ -114,7 +117,7 @@ export class Pipeline {
 
   render(dt: number) {
     this.visor?.track(this.camera);
-    if (this.composer) this.composer.render(dt);
+    if (this.composer && !this.bypass) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
   }
 }

@@ -235,6 +235,94 @@ async function boot() {
   sun.shadow.normalBias = 0.06;
   sun.shadow.camera.layers.enable(SHADOW_LAYER);
   scene.add(sun, sun.target);
+  // Shadow map cache: the 2048/4096 shadow map is redrawn only when something that casts a shadow
+  // moved by about a shadow texel or more since the last redraw, appeared or disappeared, or the
+  // Sun or the shadow box moved. Standing still, at a terminal or holding E, the GPU skips the
+  // whole shadow pass; smaller moves (your body's slow breathing sway) can't visibly change a shadow.
+  renderer.shadowMap.autoUpdate = false;
+  const shadowCenter = new THREE.Vector3();
+  const shadowLayers = sun.shadow.camera.layers;
+  const lx = new THREE.Vector3();
+  const ly = new THREE.Vector3();
+  function snapToShadowTexel(p: THREE.Vector3, out: THREE.Vector3) {
+    // The shadow camera looks along -SUN_DIR with +Y up: snap in its own x/y axes.
+    lx.set(0, 1, 0).cross(SUN_DIR).normalize();
+    ly.copy(SUN_DIR).cross(lx);
+    const texel = (sc.right - sc.left) / sun.shadow.mapSize.x;
+    const a = Math.round(p.dot(lx) / texel) * texel;
+    const b = Math.round(p.dot(ly) / texel) * texel;
+    const c = Math.round(p.dot(SUN_DIR)); // along the light: any whole metre is fine (near/far have room)
+    return out.copy(lx).multiplyScalar(a).addScaledVector(ly, b).addScaledVector(SUN_DIR, c);
+  }
+  /** Each caster as it was at the last redraw: 12 matrix numbers + geometry/instance versions. */
+  let shadowSnap = new Map<THREE.Object3D, Float64Array>();
+  let nextSnap = new Map<THREE.Object3D, Float64Array>();
+  const shadowSun = new THREE.Vector4(NaN);
+  let shadowMovers: Set<string> | null = null; // QA: which casters caused redraws
+  let shadowFrames = 0; // QA: frames, and how many of them redrew the shadow map
+  let shadowRedraws = 0;
+  const MAT_KEYS = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14];
+  function shadowsChanged() {
+    const texel = (sc.right - sc.left) / sun.shadow.mapSize.x;
+    let dirty = !sun.shadow.map || shadowSun.x !== sun.position.x || shadowSun.y !== sun.position.y || shadowSun.z !== sun.position.z || shadowSun.w !== sun.shadow.mapSize.x;
+    let seen = 0;
+    nextSnap.clear();
+    scene.traverseVisible((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || !m.castShadow || !m.layers.test(shadowLayers) || m.userData.shadowLazy) return;
+      seen++;
+      const e = m.matrixWorld.elements;
+      const im = (m as THREE.InstancedMesh).instanceMatrix;
+      const ver = m.geometry.id * 1e6 + ((m.geometry.attributes.position as THREE.BufferAttribute | undefined)?.version ?? 0) + (im ? im.version * 1e3 + (m as THREE.InstancedMesh).count * 7 : 0);
+      let rec = shadowSnap.get(m);
+      if (!rec) {
+        rec = new Float64Array(14);
+        rec[12] = NaN;
+        // How far it may turn before its outline moves half a texel (big things: less).
+        if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+        const scale = Math.max(Math.hypot(e[0], e[1], e[2]), Math.hypot(e[4], e[5], e[6]), Math.hypot(e[8], e[9], e[10]));
+        const radius = Math.max(0.05, (m.geometry.boundingSphere?.radius ?? 1) * scale);
+        rec[13] = Math.min(0.01, (texel * 0.5) / radius);
+      }
+      if (!dirty) {
+        if (rec[12] !== ver) dirty = true;
+        else {
+          // Rotation/scale by more than 0.01, or position by more than half a texel.
+          for (let k = 0; k < 12 && !dirty; k++) if (Math.abs(e[MAT_KEYS[k]] - rec[k]) > (k < 9 ? rec[13] : texel * 0.5)) dirty = true;
+        }
+        if (dirty && shadowMovers) {
+          const path = (x: THREE.Object3D | null): string => (x ? `${path(x.parent)}/${x.name || x.type}` : '');
+          shadowMovers.add(`${path(m)}/${m.geometry.type} at ${e[12].toFixed(1)},${e[13].toFixed(1)},${e[14].toFixed(1)}`);
+        }
+      }
+      nextSnap.set(m, rec);
+    });
+    if (seen !== shadowSnap.size) {
+      if (!dirty && shadowMovers) shadowMovers.add(`count ${seen} vs ${shadowSnap.size}`);
+      dirty = true;
+    }
+    if (dirty) {
+      // Take the new reference: every caster as it is now.
+      for (const [m, rec] of nextSnap) {
+        const e = m.matrixWorld.elements;
+        for (let k = 0; k < 12; k++) rec[k] = e[MAT_KEYS[k]];
+        const mm = m as THREE.Mesh;
+        const im = (mm as unknown as THREE.InstancedMesh).instanceMatrix;
+        rec[12] = mm.geometry.id * 1e6 + ((mm.geometry.attributes.position as THREE.BufferAttribute | undefined)?.version ?? 0) + (im ? im.version * 1e3 + (mm as unknown as THREE.InstancedMesh).count * 7 : 0);
+      }
+      [shadowSnap, nextSnap] = [nextSnap, shadowSnap];
+      shadowSun.set(sun.position.x, sun.position.y, sun.position.z, sun.shadow.mapSize.x);
+    }
+    return dirty;
+  }
+  scene.onBeforeRender = (_r, _s, cam) => {
+    if (cam !== camera) return; // mirrors and cube cameras reuse the map
+    shadowFrames++;
+    if (perfOff.has('shadowCache') || shadowsChanged()) {
+      shadowRedraws++;
+      renderer.shadowMap.needsUpdate = true;
+    }
+  };
   scene.add(new THREE.HemisphereLight(0x0a0c12, 0x55524c, 0.32));
   scene.environment = lunarEnvironment(renderer);
   scene.environmentIntensity = 0.55;
@@ -254,6 +342,10 @@ async function boot() {
   const interior = buildInterior(outpost.habitatPos);
   scene.add(interior.group);
   scene.add(outpost.group);
+  // For the shadow cache: blinking lamps (tiny) cast no shadow, so blinking doesn't force a redraw,
+  // and the spinning pump rotors (inside their housing) never force one either.
+  for (const bl of outpost.blinkers) bl.mesh.castShadow = false;
+  for (const r of Object.values(outpost.emergency.rotors)) r.traverse((o) => (o.userData.shadowLazy = true));
   // Floodlights light the deep shadows around the base (skipped on Low to save GPU time).
   const floodLights: THREE.SpotLight[] = [];
   if (settings.value.quality !== 'low')
@@ -1097,8 +1189,11 @@ async function boot() {
     sun.visible = day > 0.002;
     hemi.intensity = 0.32 * (0.35 + 0.65 * day);
     scene.environmentIntensity = 0.55 * (0.2 + 0.8 * day);
-    sun.position.copy(camera.position).addScaledVector(SUN_DIR, 300);
-    sun.target.position.copy(camera.position);
+    // The shadow box follows you in whole shadow-map texels, so shadows don't crawl as you move
+    // and the cached map stays valid while you stand still.
+    snapToShadowTexel(camera.position, shadowCenter);
+    sun.position.copy(shadowCenter).addScaledVector(SUN_DIR, 300);
+    sun.target.position.copy(shadowCenter);
     sky.update(camera);
     fx.update(dt);
     // Secret finds of this mission: glints and the scanner chirp.
@@ -1217,6 +1312,9 @@ async function boot() {
   function updateMirrors() {
     const live = screen.value === 'playing' || screen.value === 'paused';
     interior.mirror.visible = live && habInside.value && !perfOff.has('mirror');
+    // HAB-1's inside (about 160 parts) only when you could see it: in it, in the airlock, or close
+    // enough to look through a porthole. From farther out the hull hides it anyway.
+    interior.group.visible = perfOff.has('interiorCull') || habInside.value || moves.active || camera.position.distanceTo(outpost.habitatPos) < 16;
     outpost.outsideMirror.visible = live && !habInside.value && settings.value.quality !== 'low' && camera.position.distanceTo(outsideMirrorPos) < 16 && !perfOff.has('mirror');
   }
 
@@ -1586,6 +1684,32 @@ async function boot() {
           return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown';
         },
         info: () => ({ ...renderer.info.render, fps: fps.value }),
+        /** GPU milliseconds of the next `n` frames (EXT_disjoint_timer_query_webgl2), for qa/profile.mjs. */
+        gpuTime: (n = 60) =>
+          new Promise<number[] | null>((resolve) => {
+            const gl = renderer.getContext() as WebGL2RenderingContext;
+            const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+            if (!ext) return resolve(null);
+            const out: number[] = [];
+            const pending: WebGLQuery[] = [];
+            const render = pipeline.render.bind(pipeline);
+            pipeline.render = (dt: number) => {
+              const q = gl.createQuery()!;
+              gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+              render(dt);
+              gl.endQuery(ext.TIME_ELAPSED_EXT);
+              pending.push(q);
+              while (pending.length && gl.getQueryParameter(pending[0], gl.QUERY_RESULT_AVAILABLE)) {
+                const done = pending.shift()!;
+                if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) out.push(gl.getQueryParameter(done, gl.QUERY_RESULT) / 1e6);
+                gl.deleteQuery(done);
+              }
+              if (out.length >= n) {
+                pipeline.render = render;
+                resolve(out);
+              }
+            };
+          }),
         /** What is under the crosshair (debugging). */
         pick: () => {
           const r = new THREE.Raycaster();
@@ -1603,6 +1727,42 @@ async function boot() {
           if (o) o.visible = on;
           return !!o;
         },
+        bypassPost: (on: boolean) => (pipeline.bypass = on),
+        /** Shadow casting on/off for everything under a named object (measuring). */
+        cast: (name: string, on: boolean) => scene.getObjectByName(name)?.traverse((o) => (o.castShadow = on)),
+        shadowSize: (n: number) => {
+          sun.shadow.mapSize.setScalar(n);
+          sun.shadow.map?.dispose();
+          sun.shadow.map = null;
+        },
+        shadowAuto: (on: boolean) => (renderer.shadowMap.autoUpdate = on),
+        shadowMovers: async (ms = 1500) => {
+          shadowMovers = new Set();
+          shadowFrames = shadowRedraws = 0;
+          await new Promise((r) => setTimeout(r, ms));
+          const movers = [...shadowMovers].slice(0, 30);
+          shadowMovers = null;
+          return { movers, frames: shadowFrames, redraws: shadowRedraws };
+        },
+        /** Visible shadow casters and drawn meshes, per top-level group (measuring). */
+        casters: () => {
+          const out: Record<string, [number, number]> = {};
+          for (const top of scene.children)
+            top.traverseVisible((o) => {
+              const m = o as THREE.Mesh;
+              if (!m.isMesh) return;
+              const k = top.name || top.type;
+              out[k] ??= [0, 0];
+              out[k][0]++;
+              if (m.castShadow) out[k][1]++;
+            });
+          return out;
+        },
+        postDebug: (d: typeof Pipeline.debug) => {
+          Pipeline.debug = d;
+          pipeline.apply(settings.value.quality);
+        },
+        names: () => scene.children.map((c) => c.name || c.type),
         shadows: (on: boolean) => {
           sun.castShadow = on;
         },

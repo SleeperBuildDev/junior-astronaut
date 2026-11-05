@@ -76,9 +76,9 @@ export async function buildRocks(count: number) {
       mat.color.setRGB(0.78, 0.77, 0.75);
 
       const perType = Math.floor(layer.count / sources.length);
-      const inst = new THREE.InstancedMesh(geo, mat, perType);
-      inst.castShadow = layer.big;
-      inst.receiveShadow = true;
+      // Placed exactly as before (same random sequence), then grouped into 4 x 4 areas so the
+      // camera and the shadow box only draw the areas they can see.
+      const placed: THREE.Matrix4[] = [];
       let n = 0;
       let tries = 0;
       while (n < perType && tries++ < perType * 20) {
@@ -93,13 +93,30 @@ export async function buildRocks(count: number) {
         q.setFromEuler(new THREE.Euler(rand() * 0.4, rand() * Math.PI * 2, rand() * 0.4));
         p.set(x, heightAt(x, z) - s.y * 0.22, z);
         m.compose(p, q, s);
-        inst.setMatrixAt(n++, m);
+        placed.push(m.clone());
+        n++;
         if (sc > 0.5) colliders.push({ kind: 'ball', center: new THREE.Vector3(x, p.y + s.y * 0.35, z), radius: Math.max(s.x, s.z) * 0.42 });
       }
-      inst.count = n;
-      inst.computeBoundingSphere();
-      inst.name = `rocks-${k}-${layer.big ? 'big' : 'small'}`;
-      group.add(inst);
+      const CELLS = 4;
+      const span = 2 * 366;
+      const cells = new Map<number, THREE.Matrix4[]>();
+      for (const mm of placed) {
+        const cx = Math.min(CELLS - 1, Math.max(0, Math.floor(((mm.elements[12] - LAYOUT.base.x + span / 2) / span) * CELLS)));
+        const cz = Math.min(CELLS - 1, Math.max(0, Math.floor(((mm.elements[14] - LAYOUT.base.z + span / 2) / span) * CELLS)));
+        const key = cz * CELLS + cx;
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key)!.push(mm);
+      }
+      for (const [key, list] of cells) {
+        const inst = new THREE.InstancedMesh(geo, mat, list.length);
+        inst.castShadow = layer.big;
+        inst.receiveShadow = true;
+        list.forEach((mm, i) => inst.setMatrixAt(i, mm));
+        inst.computeBoundingSphere();
+        inst.matrixAutoUpdate = false;
+        inst.name = `rocks-${k}-${layer.big ? 'big' : 'small'}-${key}`;
+        group.add(inst);
+      }
     }
   });
   // Mission 7 site B: a big boulder thrown out by the impact that made the landmark crater.

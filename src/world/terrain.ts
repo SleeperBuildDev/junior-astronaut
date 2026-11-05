@@ -115,11 +115,51 @@ export function buildTerrain(material: THREE.Material, segments: number): Terrai
   group.name = 'terrain';
 
   const near = gridGeometry(NEAR_SIZE, segments, heightAt, 4);
-  const nearMesh = new THREE.Mesh(near.geo, material);
-  nearMesh.receiveShadow = true;
-  nearMesh.castShadow = true;
-  nearMesh.name = 'terrain-near';
-  group.add(nearMesh);
+  // The near patch is drawn as 8 x 8 tiles that share one vertex buffer, so the camera (and the
+  // Sun's 120 m shadow box) only process the tiles they can see. Same triangles, same look.
+  const nearGroup = new THREE.Group();
+  nearGroup.name = 'terrain-near';
+  const TILES = 8;
+  const n = segments + 1;
+  const pos = near.pos;
+  for (let tz = 0; tz < TILES; tz++) {
+    for (let tx = 0; tx < TILES; tx++) {
+      const x0 = Math.floor((tx * segments) / TILES);
+      const x1 = Math.floor(((tx + 1) * segments) / TILES);
+      const z0 = Math.floor((tz * segments) / TILES);
+      const z1 = Math.floor(((tz + 1) * segments) / TILES);
+      const idx = new Uint32Array((x1 - x0) * (z1 - z0) * 6);
+      const box = new THREE.Box3();
+      const v = new THREE.Vector3();
+      let k = 0;
+      for (let iz = z0; iz < z1; iz++) {
+        for (let ix = x0; ix < x1; ix++) {
+          const a = iz * n + ix;
+          const b = a + 1;
+          const c = a + n;
+          const d = c + 1;
+          idx.set([a, c, b, b, c, d], k);
+          k += 6;
+        }
+      }
+      for (let iz = z0; iz <= z1; iz++)
+        for (let ix = x0; ix <= x1; ix++) {
+          const i = (iz * n + ix) * 3;
+          box.expandByPoint(v.set(pos[i], pos[i + 1], pos[i + 2]));
+        }
+      const geo = new THREE.BufferGeometry();
+      for (const name of ['position', 'normal', 'uv']) geo.setAttribute(name, near.geo.getAttribute(name));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      geo.boundingBox = box;
+      geo.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+      const tile = new THREE.Mesh(geo, material);
+      tile.receiveShadow = true;
+      tile.castShadow = true;
+      tile.matrixAutoUpdate = false;
+      nearGroup.add(tile);
+    }
+  }
+  group.add(nearGroup);
 
   // The far ring sits slightly below the near patch where they overlap, so the
   // detailed patch always wins without visible seams.
