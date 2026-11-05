@@ -45,6 +45,7 @@ import {
   waypoint,
 } from '../game/state';
 import { num, t } from '../i18n';
+import { CREDITS, TOOL_CREDITS } from '../game/credits';
 
 export interface Actions {
   start: () => void;
@@ -1852,6 +1853,7 @@ function Panel({ actions }: { actions: Actions }) {
         {p === 'missions' && <MissionSelect actions={actions} />}
         {p === 'crew' && <CrewPanel />}
         {p === 'colony' && <SettlementPanel />}
+        {p === 'credits' && <CreditsList />}
       </div>
     </div>
   );
@@ -1904,6 +1906,9 @@ function Menu({ actions }: { actions: Actions }) {
           </button>
           <button class="btn" onClick={() => (panel.value = 'knowledge')}>
             {t('menu.knowledge')}
+          </button>
+          <button class="btn" onClick={() => (panel.value = 'credits')}>
+            {t('menu.credits')}
           </button>
         </div>
         <p class="note">{t('menu.note')}</p>
@@ -2158,6 +2163,7 @@ function MusicVideo({ actions }: { actions: Actions }) {
         onEnded={end}
         onError={end}
       />
+      <CreditsRoll video={video} />
       {state === 'loading' ? <div class="mtv-wait">{t('mv.loading')}</div> : null}
       {state === 'blocked' ? (
         <button class="btn primary mtv-play" onClick={() => void video.current?.play()}>
@@ -2167,6 +2173,62 @@ function MusicVideo({ actions }: { actions: Actions }) {
       <button class="btn small cine-skip mtv-skip" onClick={end}>
         {t('cs.skip')} ▶▶ <small>{t('mv.skipHint')}</small>
       </button>
+    </div>
+  );
+}
+
+/** Everyone who made the game, then the tools and assets it is built with. */
+function CreditsList() {
+  return (
+    <div class="credits-list">
+      {CREDITS.map(([role, names]) => (
+        <div class="credit" key={role}>
+          <small>{role}</small>
+          {names.map((n) => (
+            <b key={n}>{n}</b>
+          ))}
+        </div>
+      ))}
+      <h3>{t('credits.tools')}</h3>
+      {TOOL_CREDITS.map(([what, names]) => (
+        <div class="credit tool" key={what}>
+          <small>{what}</small>
+          <b>{names.join(' · ')}</b>
+        </div>
+      ))}
+      <p class="credit-note">{t('credits.note')}</p>
+    </div>
+  );
+}
+
+/** The credits rolling up the right side of the music video: they start with the video and
+ *  leave the top as it ends (tied to the video's own clock, so they pause when it pauses). */
+function CreditsRoll({ video }: { video: { current: HTMLVideoElement | null } }) {
+  const roll = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const step = () => {
+      const v = video.current;
+      const r = roll.current;
+      if (v && r) {
+        const k = Math.min(1, v.currentTime / (v.duration || 160.75));
+        const h = r.offsetHeight;
+        const H = r.parentElement!.clientHeight;
+        r.style.transform = `translateY(${(H - k * (H + h)).toFixed(1)}px)`;
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return (
+    <div class="mtv-credits">
+      <div class="mtv-roll" ref={roll}>
+        <h2>JUNIOR ASTRONAUT</h2>
+        <p class="mtv-sub">{t('menu.subtitle')}</p>
+        <CreditsList />
+        <p class="mtv-thanks">{t('credits.thanks')}</p>
+      </div>
     </div>
   );
 }

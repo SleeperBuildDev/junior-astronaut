@@ -231,6 +231,22 @@ kbd {
 .mtv-skip { top: 22px; }
 .mtv-wait { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--dim); letter-spacing: 0.08em; }
 .mtv-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+/* Credits: a list in the menu, and a roll up the right side of the music video. */
+.credits-list { text-align: center; padding: 8px 0 4px; }
+.credit { margin: 0 0 14px; }
+.credit small { display: block; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan); opacity: 0.85; margin-bottom: 2px; }
+.credit b { display: block; font-size: 17px; font-weight: 600; color: #eef4f8; }
+.credit.tool b { font-weight: 400; font-size: 15px; color: #d5e2ec; }
+.credits-list h3 { font-family: var(--title); letter-spacing: 0.08em; margin: 34px 0 16px; color: #eef4f8; }
+.credit-note { font-size: 13px; color: var(--dim); margin-top: 22px; }
+.mtv-credits { position: absolute; top: 0; bottom: 0; right: 0; width: min(30vw, 440px); overflow: hidden; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.5) 45%);
+  -webkit-mask-image: linear-gradient(transparent 12%, #000 24%, #000 84%, transparent); mask-image: linear-gradient(transparent 12%, #000 24%, #000 84%, transparent); }
+.mtv-roll { position: absolute; left: 0; right: 0; top: 0; padding: 0 28px 0 48px; text-shadow: 0 1px 6px #000; will-change: transform; }
+.mtv-roll h2 { font-family: var(--title); text-align: center; letter-spacing: 0.1em; font-size: 26px; margin: 0; color: #eef4f8; }
+.mtv-sub { text-align: center; color: var(--cyan); letter-spacing: 0.24em; text-transform: uppercase; font-size: 12px; margin: 6px 0 40px; }
+.mtv-thanks { text-align: center; font-family: var(--title); font-size: 20px; color: #eef4f8; margin: 46px 0 0; }
+.mtv-credits .credit-note { color: #b9c6d0; }
 body.lang-my .cine-caption { font-family: 'Noto Sans Myanmar', var(--title); letter-spacing: 0.05em; }
 
 /* ---------- guidance ---------- */

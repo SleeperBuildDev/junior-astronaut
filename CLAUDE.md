@@ -136,7 +136,12 @@ Done and tested (git history has one commit per milestone):
 - PC controls, low-gravity Rapier character controller, suit HUD (O₂/power/health/temp/radiation,
   mission day clock, compass, objective panel + "What to do" hint, Mission Control comms, prompts,
   warnings), waypoint marker + light beam to the current target, knowledge cards + Knowledge Center,
-  menus (main, briefing, pause, settings, controls, mission complete; the Credits screen was removed at the owner's request), phone notice.
+  menus (main, briefing, pause, settings, controls, mission complete, Credits), phone notice.
+- **Credits** (2026-11-05): `src/game/credits.ts` (`CREDITS` [role, names] for the 6 team members the owner named, then
+  `TOOL_CREDITS`; roles stay English in both languages; the owner's own name is deliberately not listed). Main menu
+  Credits button → panel 'credits' (`CreditsList`); the music video shows `CreditsRoll` up its right side, positioned
+  from the video's `currentTime` (starts with the video, leaves the top as it ends, pauses with it).
+  QA: `node qa/credits.mjs [en|my] [url]`.
 - **English + Burmese** UI (Settings → Language). Mission Control voice is English with Burmese subtitles.
 - Mission Control radio voice lines (Kokoro TTS) + narrator voice for cutscenes.
 - Cutscenes: Mission 1 landing intro (descent + ballistic dust), Mission 1 ending, Mission 2 intro + ending.

@@ -60,7 +60,7 @@ All free and open-source: three.js, postprocessing, Rapier physics, Preact, Vite
 Models were made with Blender and compressed with gltfpack. Voices were made with Kokoro TTS.
 Rock models and textures are from Poly Haven (CC0). The Earth image is NASA's Blue Marble.
 No NASA logos or insignia are used. The game is an educational project, not affiliated with or
-endorsed by NASA. (The in-game Credits screen was removed at the owner's request; this section is the credits.)
+endorsed by NASA. The team and these tools are listed in the game's Credits (main menu, and over the music video).
 
 ## Offline copy (USB)
 

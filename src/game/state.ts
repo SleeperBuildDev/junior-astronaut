@@ -5,7 +5,7 @@ export type Screen = 'loading' | 'menu' | 'cutscene' | 'briefing' | 'playing' | 
 export const screen = signal<Screen>('loading');
 export const loadProgress = signal(0);
 /** Which overlay panel is open on top of the game (pauses input). */
-export const panel = signal<null | 'settings' | 'controls' | 'knowledge' | 'missions' | 'crew' | 'colony'>(null);
+export const panel = signal<null | 'settings' | 'controls' | 'knowledge' | 'missions' | 'crew' | 'colony' | 'credits'>(null);
 
 export const suit = signal({ o2: 100, power: 100, health: 100, tempIn: 21, tempOut: -48, dose: 0, light: false });
 
