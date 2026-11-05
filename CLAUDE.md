@@ -79,7 +79,7 @@ Done and tested (git history has one commit per milestone):
   sliding), lunar lope when sprinting, tuck in the air, spring squat on landing (`land()`), hips turn when
   strafing. QA: `node qa/groundfx.mjs [quality]`, `node qa/astronaut.mjs` (model + shadow gait), hook `fx()`.
 - **Music video after Mission 9** (2026-11-04): winning Mission 9 plays `public/assets/video/the-last-orbit.mp4`
-  (46 MB web encode of the MV rendered with `?film` / `src/mtv/film.ts`; masters + song in the git-ignored `mtv/`)
+  (46 MB web encode of the MV rendered with `?film` / `src/mtv/film.ts`; masters + song in the git-ignored `mtv/`; re-rendered 2026-11-05 with the helmet-view graphics: DOF, sun glare/flare, per-shot motion blur via `Opts.blur` → `FilmCtx.lens`; steps: `node qa/film.mjs` → `sh mtv/encode.sh` → 2-pass 2150k web encode `mtv/web_1080.mp4` → copy to public/assets/video; old version in `mtv/v1/`)
   after the m9 ending cutscene, screen `mtv` (`MusicVideo` in App.tsx), then the complete screen, which has a replay
   button. Skip button / Enter / Space / Esc (ignored for 1 s and on key repeat); game audio is suspended (`muteGame`)
   and the render loop idles meanwhile. QA: `node qa/musicvideo.mjs [url]`, hooks `musicVideo()`, `endMusicVideo()`.

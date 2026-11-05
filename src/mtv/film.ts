@@ -24,6 +24,8 @@ export interface FilmCtx {
   fx: GroundEffects;
   rover: { place: (p: THREE.Vector3, yaw: number) => void; obj: THREE.Object3D };
   sunScale: { value: number };
+  /** Camera motion blur for the next frames (0-1); reset to 0 at every cut. */
+  lens: { blur: number };
 }
 
 /** The song's sections (seconds). Lyric lines start on these cuts (see mtv/make_subs.py). */
@@ -178,6 +180,7 @@ export function buildFilm(c: FilmCtx): Shot[] {
   function reset(sunK: number) {
     sunPath(sunK);
     c.sunScale.value = 1;
+    c.lens.blur = 0;
     A.root.visible = false;
     A.lamp.visible = false;
     A.lamp.intensity = 0;
@@ -191,6 +194,8 @@ export function buildFilm(c: FilmCtx): Shot[] {
   }
   interface Opts {
     sun?: number;
+    /** Camera motion blur through the shot. */
+    blur?: number;
     fov?: number;
     start?: () => void;
     update?: (k: number, dt: number, t: number) => void;
@@ -202,6 +207,7 @@ export function buildFilm(c: FilmCtx): Shot[] {
       start: () => {
         t = 0;
         reset(o.sun ?? 0);
+        c.lens.blur = o.blur ?? 0;
         o.start?.();
       },
       update: (k, dt) => {
@@ -544,7 +550,7 @@ export function buildFilm(c: FilmCtx): Shot[] {
           cam.position.copy(pos).add(v(-2 - e * 40, 1.8 + e * 120, 3 + e * 60));
           cam.lookAt(pos);
         },
-        { sun: variant ? 0.9 : 0, fov: 55, update: (k, dt) => (pos = walk(k, dt, d)) },
+        { sun: variant ? 0.9 : 0, fov: 55, blur: 0.5, update: (k, dt) => (pos = walk(k, dt, d)) },
       );
     });
     // "Only me and ghosts remain": the crew fade in around you, made of light, then fade away.
@@ -591,7 +597,7 @@ export function buildFilm(c: FilmCtx): Shot[] {
             cam.position.copy(ctr).add(v(6 - e * 6, 14 - e * 13.5, 6 - e * 6));
             cam.lookAt(ctr.clone().add(v(0, -3, 0)));
           },
-          { fov: 60 },
+          { fov: 60, blur: 0.6 },
         );
       });
     else add(T[2], T[3], (d) => discShot('icefrost', 1, d, 0));
@@ -624,7 +630,7 @@ export function buildFilm(c: FilmCtx): Shot[] {
           cam.position.copy(a1).add(v(-4, 0.6, -6));
           cam.lookAt(pos.clone().add(v(0, 1, 0)));
         },
-        { sun: variant ? 0.92 : 0, fov: 40, update: (k, dt) => (pos = walk(k, dt, d)) },
+        { sun: variant ? 0.92 : 0, fov: 40, blur: 0.7, update: (k, dt) => (pos = walk(k, dt, d)) },
       );
     });
     // "Only me and ghosts remain": they walk ahead of you toward the lander and dissolve.
@@ -670,7 +676,7 @@ export function buildFilm(c: FilmCtx): Shot[] {
             cam.position.copy(ctr).add(v(Math.cos(a) * (9 - e * 9), 10 - e * 9.6, Math.sin(a) * (9 - e * 9)));
             cam.lookAt(ctr.clone().add(v(0, -3, 0)));
           },
-          { fov: 60 },
+          { fov: 60, blur: 0.6 },
         );
       });
     // "Heavy silence fills the frame"
@@ -787,6 +793,7 @@ export function buildFilm(c: FilmCtx): Shot[] {
         cam.lookAt(pos.clone().add(v(0, 0.8, 0)));
       },
       {
+        blur: 1,
         update: (k, dt) => {
           const a = 0.2 + k * 1.3;
           pos.set(ctr.x + Math.cos(a) * R, 0, ctr.z + Math.sin(a) * R);

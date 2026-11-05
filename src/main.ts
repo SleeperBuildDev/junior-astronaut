@@ -1320,6 +1320,8 @@ async function boot() {
 
   let fogAmt = 0;
   let blurAmt = 0;
+  /** ?film: motion blur the music video asks for in fast shots (0-1). */
+  const filmLens = { blur: 0 };
   let lastWeather = rad.value.weather;
   const camFwd = new THREE.Vector3();
   const sunNdc = new THREE.Vector3();
@@ -1333,6 +1335,7 @@ async function boot() {
     fogAmt += (fogTarget - fogAmt) * Math.min(1, dt * (fogTarget > fogAmt ? 0.8 : 2.5)); // clears faster than it forms
     const blurTarget = firstPerson && rover.driving ? Math.min(1, Math.abs(rover.speed) / 3) * 0.8 * motion : 0;
     blurAmt += (blurTarget - blurAmt) * Math.min(1, dt * 3);
+    if (FILM) blurAmt = filmLens.blur; // the music video sets its own blur per shot
     if (rover.driving && screen.value === 'playing') shake.rumble((Math.abs(rover.speed) / 5.5) * 0.22);
     // A solar storm arriving: a jolt, then radiation flashes in your eyes while you're out in it.
     const weather = rad.value.weather;
@@ -1780,7 +1783,7 @@ async function boot() {
     actions.setQuality('high');
     missionNumber.value = 9;
     resetMission();
-    const shots = buildFilm({ scene, camera, outpost, scenes: scenes as unknown as Record<string, Shot[]>, astronaut, discoveries, fx, rover, sunScale });
+    const shots = buildFilm({ scene, camera, outpost, scenes: scenes as unknown as Record<string, Shot[]>, astronaut, discoveries, fx, rover, sunScale, lens: filmLens });
     let virtual = 0;
     Object.assign(window, {
       __film: {
