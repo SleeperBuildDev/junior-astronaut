@@ -6,7 +6,7 @@ export const en: Record<string, string> = {
   'mv.skipHint': 'Enter to skip',
   'credits.tools': 'Built with',
   'credits.thanks': 'Thank you for playing!',
-  'credits.note': 'An educational project. Not affiliated with or endorsed by NASA; no NASA logos are used.',
+  'credits.note': 'For NASA Hackathon',
   'mv.loading': 'Loading the music video…',
   'mv.play': 'Play the music video',
   'mv.replay': 'Watch the music video',
